@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>History</title>
+
+  <!-- 1. Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- 2. Your firebase-config.js (contains initializeApp(firebaseConfig)) -->
+  <script src="js/firebase-config.js"></script>
+
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; padding: 1em; background: #fffafc; }
+    h1 { text-align:center; margin-bottom:1em; }
+    .card-container { display:flex; overflow-x:auto; gap:0.5em; padding-bottom:1em; }
+    .card { flex:0 0 80%; background:#fff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); padding:1em; }
+    .card h2 { margin:0 0 0.5em; font-size:1.1em; }
+    .ribbon { display:flex; overflow-x:auto; gap:2px; margin:1em 0; }
+    .ribbon-bar { flex:0 0 80%; height:24px; border-radius:4px; position:relative; }
+    /* colors match calendar:*/
+    .ribbon-bar .day1 { background:#e76f8a; }
+    .ribbon-bar .period { background:#f6b1b7; }
+    .ribbon-bar .fertile { background:#8ecae6; }
+    .ribbon-bar .surge { background:#d15fa7; }
+    .ribbon-bar .ovulation { background:#3f51b5; }
+    .ribbon-bar .luteal { background:#c8e6c9; }
+    .ribbon-bar span { position:absolute; top:0; bottom:0; }
+  </style>
+</head>
+<body>
+  <h1>History Overview</h1>
+
+  <!-- Top‑line Metrics Carousel -->
+  <div class="card-container" id="metricsCarousel">
+    <!-- cards injected here -->
+  </div>
+
+  <!-- Cycle Overlays Ribbon -->
+  <div class="ribbon" id="cycleRibbon">
+    <!-- per‑cycle bars injected here -->
+  </div>
+
+  <script>
+    // 3. Now that firebase is initialized, grab auth + db:
+
+    // Helper: pad
+    function pad(n){return String(n).padStart(2,'0');}
+    function formatISO(d){ const D=new Date(d);return `${D.getFullYear()}-${pad(D.getMonth()+1)}-${pad(D.getDate())}`;}
+
+    // Load all entries:
+    async function loadEntries(uid){
+      const snap = await db.collection('entries')
+        .where('uid','==',uid)
+        .orderBy('entryDate').get();
+      return snap.docs.map(d=>d.data());
+    }
+
+    // Compute averages across _completed_ cycles only:
+    function computeAverages(entries){
+      // find all Day 1s
+      const starts = entries.filter(e=>e.phase==='day1-period').map(e=>new Date(e.entryDate)).sort((a,b)=>a-b);
+      if(starts.length<2) return null;
+      // build boundaries & cycle‐by‐cycle stats
+      let cycles = [];
+      for(let i=0;i<starts.length-1;i++){
+        const s=starts[i], e=starts[i+1];
+        const ce = entries.filter(x=>{
+          const d=new Date(x.entryDate);
+          return d>=s && d<e;
+        });
+        cycles.push({start:s,entries:ce});
+      }
+      // last completed cycle? ignore if it’s still open
+      // now calculate:
+      const avg = arr=>Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+      const lengths = cycles.map(c=> Math.round((c.entries[c.entries.length-1]&&new Date(c.entries[c.entries.length-1].entryDate)-c.start)/86400000)+1 );
+      const fertile = cycles.map(c=> c.entries.filter(x=>{
+        const v=parseFloat(x.opk);
+        return !isNaN(v)&&v<1&&v>=0;
+      }).length);
+      const surges = cycles.map(c=>{
+        const vals=c.entries.map(x=>parseFloat(x.opk)).filter(v=>!isNaN(v)&&v>=1);
+        return vals.length?Math.max(...vals):0;
+      });
+      const ovday = cycles.map(c=>{
+        const sur=c.entries.filter(x=>parseFloat(x.opk)>=1).pop();
+        if(!sur) return null;
+        const d=new Date(sur.entryDate); d.setDate(d.getDate()+1);
+        return Math.round((d-c.start)/86400000)+1;
+      }).filter(n=>n);
+      const luteal = cycles.map(c=>{
+        // last day before next Day1
+        return Math.round((c.entries[c.entries.length-1]&&new Date(c.entries[c.entries.length-1].entryDate)- (c.entries.filter(x=>parseFloat(x.opk)>=1).pop()||c.start))/86400000);
+      });
+      return {
+        avgCycleLength:      avg(lengths),
+        avgFertileDays:      avg(fertile),
+        avgLHsurge:          (avg(surges)).toFixed(1),
+        avgOvDay:            avg(ovday),
+        avgLuteal:           avg(luteal),
+      };
+    }
+
+    // Render metrics cards:
+    function renderMetrics(avgs){
+      const container = document.getElementById('metricsCarousel');
+      container.innerHTML = '';
+      const metrics = [
+        ['Avg cycle length',       avgs.avgCycleLength+' days'],
+        ['Avg fertile days',       avgs.avgFertileDays+' days'],
+        ['Avg LH surge (OPK)',     avgs.avgLHsurge],
+        ['Avg ovulation day (CD)', avgs.avgOvDay],
+        ['Avg luteal length',      avgs.avgLuteal+' days']
+      ];
+      metrics.forEach(([label,val])=>{
+        const c=document.createElement('div');
+        c.className='card';
+        c.innerHTML=`<h2>${label}</h2><div>${val}</div>`;
+        container.appendChild(c);
+      });
+    }
+
+    // Render ribbon:
+    function renderRibbon(cycles){
+      const ribbon = document.getElementById('cycleRibbon');
+      ribbon.innerHTML='';
+      cycles.forEach(c=>{
+        const bar=document.createElement('div');
+        bar.className='ribbon-bar';
+        // divide bar width proportionally
+        const total = c.entries.length;
+        // find each segment length
+        const startIdx = c.entries.findIndex(x=>x.phase);
+        // instead of phase, color each date by logged phase function...
+        c.entries.forEach((e,i)=>{
+          const span=document.createElement('span');
+          span.style.left = (i/total*100)+'%';
+          span.style.width= (1/total*100)+'%';
+          span.className = e.phase==='day1-period' ? 'day1'
+                       : e.phase==='period'       ? 'period'
+                       : parseFloat(e.opk)>=1     ? 'ovulation'
+                       : parseFloat(e.opk)>0      ? 'fertile'
+                       : 'luteal';
+          bar.appendChild(span);
+        });
+        ribbon.appendChild(bar);
+      });
+    }
+
+    // Kickoff:
+    auth.onAuthStateChanged(async u=>{
+      if(!u) return location.href='index.html';
+      const all = await loadEntries(u.uid);
+      // group into completed cycles:
+      const starts = all.filter(e=>e.phase==='day1-period').map(e=>new Date(e.entryDate)).sort((a,b)=>a-b);
+      const cycles=[];
+      for(let i=0;i<starts.length-1;i++){
+        const s=starts[i], e=starts[i+1];
+        cycles.push({
+          start:s,
+          entries: all.filter(x=>{
+            const d=new Date(x.entryDate);
+            return d>=s && d<e;
+          })
+        });
+      }
+      const avgs = computeAverages(all);
+      if(avgs){
+        renderMetrics(avgs);
+        renderRibbon(cycles);
+      }
+    });
+  </script>
+</body>
+</html>

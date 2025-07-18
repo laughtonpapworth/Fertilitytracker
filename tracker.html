@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLP Fertility Tracker</title>
+
+  <!-- Firebase compat libraries & config -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #fffafc; padding: 1em; }
+    h1 { text-align: center; margin-bottom: 0.5em; }
+    .nav-button { display: block; margin: 0.5em auto 1em; text-align: center; background: #eeb7c2; color: white; padding: 0.6em 1em; border-radius: 20px; text-decoration: none; max-width: 200px; }
+    .form-group { text-align: center; margin-bottom: 1em; }
+    .form-group label { display: block; margin-bottom: 0.2em; }
+    .form-group input[type="date"] { width: 90%; max-width: 300px; padding: 0.6em; border-radius: 8px; border: 1px solid #ccc; font-size: 1em; }
+    .btn { display: block; width: 90%; max-width: 300px; margin: 0.8em auto; padding: 0.8em; background: #c4d7c2; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; }
+    .btn:active { transform: scale(0.98); }
+
+    /* Modal backdrop & container */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1em;
+    }
+    .modal {
+      background: white;
+      padding: 1em;
+      border-radius: 8px;
+      width: calc(100% - 2em);
+      max-width: 300px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .modal h3 { margin-top: 0; font-size: 1.2em; }
+    .modal .actions { text-align: right; margin-top: 1em; }
+    .modal .actions button { margin-left: 0.5em; padding: 0.5em 0.8em; border-radius: 4px; border: none; cursor: pointer; background: #c4d7c2; }
+
+    /* Grid lists with two columns, vertical-first order */
+    .symptom-list,
+    .cm-list,
+    .spot-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-auto-flow: row;
+      gap: 0.5em;
+    }
+    .symptom-list label,
+    .cm-list label,
+    .spot-list label {
+      display: flex;
+      align-items: center;
+      font-size: 0.95em;
+      word-break: break-word;
+    }
+    .symptom-list input,
+    .cm-list input,
+    .spot-list input {
+      margin-right: 0.3em;
+    }
+
+    /* Stack on narrow screens */
+    @media (max-width: 360px) {
+      .symptom-list,
+      .cm-list,
+      .spot-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Log Entry</h1>
+  <a class="nav-button" href="index.html">← Back to Home</a>
+
+  <div class="form-group">
+    <label for="date">Date</label>
+    <input type="date" id="date" />
+  </div>
+
+  <button id="btnPeriod" class="btn">Log Start of Period</button>
+  <button id="btnBBT" class="btn">BBT</button>
+  <button id="btnLH" class="btn">LH (OPK)</button>
+  <button id="btnSymptoms" class="btn">Log Symptoms</button>
+  <button id="btnCM" class="btn">Log Cervical Mucus</button>
+  <button id="btnSpotting" class="btn">Log Spotting</button>
+  <button id="btnSex" class="btn">Log Sex</button>
+
+  <!-- Symptoms Modal -->
+  <div id="symBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3>Select Symptoms</h3>
+      <div class="symptom-list">
+        <label><input type="checkbox" id="sym_Cramps"/> Cramps</label>
+        <label><input type="checkbox" id="sym_Bloating"/> Bloating</label>
+        <label><input type="checkbox" id="sym_Nausea"/> Nausea</label>
+        <label><input type="checkbox" id="sym_NipplePain"/> Nipple Pain</label>
+        <label><input type="checkbox" id="sym_BreastPain"/> Breast Pain</label>
+        <label><input type="checkbox" id="sym_BreastIncrease"/> Breast Increase</label>
+      </div>
+      <div class="actions">
+        <button id="symCancel" class="btn">Exit</button>
+        <button id="symSave" class="btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cervical Mucus Modal -->
+  <div id="cmBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3>Select Cervical Mucus</h3>
+      <div class="cm-list">
+        <label><input type="checkbox" id="cm_dry"/> Dry</label>
+        <label><input type="checkbox" id="cm_sticky"/> Sticky</label>
+        <label><input type="checkbox" id="cm_watery"/> Watery</label>
+        <label><input type="checkbox" id="cm_creamy"/> Creamy</label>
+        <label><input type="checkbox" id="cm_lotion_like"/> Lotion Like</label>
+        <label><input type="checkbox" id="cm_egg_white"/> Egg White</label>
+        <label><input type="checkbox" id="cm_increased"/> Increased</label>
+        <label><input type="checkbox" id="cm_decreased"/> Decreased</label>
+      </div>
+      <div class="actions">
+        <button id="cmCancel" class="btn">Exit</button>
+        <button id="cmSave" class="btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spotting Modal -->
+  <div id="spotBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3>Select Spotting</h3>
+      <div class="spot-list">
+        <label><input type="checkbox" id="spot_Pink"/> Pink</label>
+        <label><input type="checkbox" id="spot_Brown"/> Brown</label>
+        <label><input type="checkbox" id="spot_Red"/> Red</label>
+        <label><input type="checkbox" id="spot_Internal"/> Internal</label>
+        <label><input type="checkbox" id="spot_External"/> External</label>
+        <label><input type="checkbox" id="spot_Minimal"/> Minimal</label>
+        <label><input type="checkbox" id="spot_Moderate"/> Moderate</label>
+        <label><input type="checkbox" id="spot_Heavy"/> Heavy</label>
+      </div>
+      <div class="actions">
+        <button id="spotCancel" class="btn">Exit</button>
+        <button id="spotSave" class="btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      let uid;
+      const auth = firebase.auth();
+      const db = firebase.firestore();
+
+      const dateInput   = document.getElementById('date');
+      dateInput.value = new Date().toISOString().split('T')[0];
+      const btnPeriod   = document.getElementById('btnPeriod');
+      const btnBBT      = document.getElementById('btnBBT');
+      const btnLH       = document.getElementById('btnLH');
+      const btnCM       = document.getElementById('btnCM');
+      const btnSymptoms = document.getElementById('btnSymptoms');
+      const btnSpotting = document.getElementById('btnSpotting');
+      const btnSex      = document.getElementById('btnSex');
+      const symBackdrop  = document.getElementById('symBackdrop');
+      const cmBackdrop   = document.getElementById('cmBackdrop');
+      const spotBackdrop = document.getElementById('spotBackdrop');
+      const symSave      = document.getElementById('symSave');
+      const symCancel    = document.getElementById('symCancel');
+      const cmSave       = document.getElementById('cmSave');
+      const cmCancel     = document.getElementById('cmCancel');
+      const spotSave     = document.getElementById('spotSave');
+      const spotCancel   = document.getElementById('spotCancel');
+
+      function upsertEntry(dateStr, data) {
+        const col = db.collection('users').doc(uid).collection('entries');
+        col.where('entryDate','==',dateStr).get()
+          .then(q => q.empty
+            ? col.add(Object.assign({ entryDate: dateStr, timestamp: firebase.firestore.FieldValue.serverTimestamp() }, data))
+            : col.doc(q.docs[0].id).update(data)
+          );
+      }
+
+      function requireDate() {
+        if (!dateInput.value) alert('Pick a date first');
+        return !!dateInput.value;
+      }
+
+      btnPeriod.addEventListener('click', () => {
+        if (!requireDate()) return;
+        if (confirm(`Confirm start of period for ${dateInput.value}?`))
+          upsertEntry(dateInput.value, { phase: 'day1-period' });
+      });
+      btnBBT.addEventListener('click', () => {
+        if (!requireDate()) return;
+        const val = prompt(`Enter BBT (e.g. 36.44) for ${dateInput.value}:`);
+        if (val !== null && /^\d{2}\.\d{1,2}$/.test(val))
+          upsertEntry(dateInput.value, { bbt: val });
+      });
+      btnLH.addEventListener('click', () => {
+        if (!requireDate()) return;
+        const val = prompt(`Enter LH/OPK (e.g. 0.85 or 1.12) for ${dateInput.value}:`);
+        if (val !== null && /^\d{1,2}(?:\.\d+)?$/.test(val))
+          upsertEntry(dateInput.value, { opk: val });
+      });
+      btnSymptoms.addEventListener('click', () => {
+        if (!requireDate()) return;
+        ['Cramps','Bloating','Nausea','NipplePain','BreastPain','BreastIncrease']
+          .forEach(id => document.getElementById('sym_' + id).checked = false);
+        symBackdrop.style.display = 'flex';
+      });
+      symSave.addEventListener('click', () => {
+        const keys = ['Cramps','Bloating','Nausea','NipplePain','BreastPain','BreastIncrease'];
+        const selected = keys.filter(k => document.getElementById('sym_' + k).checked);
+        if (selected.length) upsertEntry(dateInput.value, { symptoms: selected });
+        symBackdrop.style.display = 'none';
+      });
+      symCancel.addEventListener('click', () => symBackdrop.style.display = 'none');
+      btnCM.addEventListener('click', () => {
+        if (!requireDate()) return;
+        ['dry','sticky','watery','creamy','lotion_like','egg_white','increased','decreased']
+          .forEach(id => document.getElementById('cm_' + id).checked = false);
+        cmBackdrop.style.display = 'flex';
+      });
+      cmSave.addEventListener('click', () => {
+        const keys = ['dry','sticky','watery','creamy','lotion_like','egg_white','increased','decreased'];
+        const selected = keys.filter(k => document.getElementById('cm_' + k).checked);
+        if (selected.length) upsertEntry(dateInput.value, { cm: selected });
+        cmBackdrop.style.display = 'none';
+      });
+      cmCancel.addEventListener('click', () => cmBackdrop.style.display = 'none');
+      btnSpotting.addEventListener('click', () => {
+        if (!requireDate()) return;
+        ['Pink','Brown','Red','Internal','External','Minimal','Moderate','Heavy']
+          .forEach(id => document.getElementById('spot_' + id).checked = false);
+        spotBackdrop.style.display = 'flex';
+      });
+      spotSave.addEventListener('click', () => {
+        const keys = ['Pink','Brown','Red','Internal','External','Minimal','Moderate','Heavy'];
+        const selected = keys.filter(k => document.getElementById('spot_' + k).checked);
+        if (selected.length) upsertEntry(dateInput.value, { spotting: selected });
+        spotBackdrop.style.display = 'none';
+      });
+      spotCancel.addEventListener('click', () => spotBackdrop.style.display = 'none');
+      btnSex.addEventListener('click', () => {
+        if (!requireDate()) return;
+        if (confirm(`Log sex occurred for ${dateInput.value}?`))
+          upsertEntry(dateInput.value, { sex: 'Yes' });
+      });
+      auth.onAuthStateChanged(user => {
+        if (!user) window.location.href = 'index.html'; else uid = user.uid;
+      });
+    });
+  </script>
+</body>
+</html>
+

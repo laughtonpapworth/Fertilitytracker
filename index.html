@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LLP Fertility Tracker</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#88a58d"/>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #fffafc;
+      padding: 2em;
+      text-align: center;
+    }
+    h1 {
+      font-size: 1.8em;
+      margin-bottom: 0.5em;
+    }
+    .logo {
+      width: 120px;
+      margin-bottom: 1em;
+    }
+    .nav-button {
+      display: block;
+      margin: 1em auto;
+      padding: 0.8em 1.2em;
+      background-color: #eeb7c2;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 20px;
+      text-decoration: none;
+      max-width: 250px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .auth-form {
+      max-width: 300px;
+      margin: 2em auto;
+    }
+    input {
+      width: 100%;
+      padding: 0.6em;
+      margin: 0.5em 0;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <img src="LLP_logo.svg" alt="LLP Logo" class="logo"/>
+  <h1>LLP Fertility Tracker</h1>
+
+  <div id="auth-section" class="auth-form">
+    <input type="email" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Password" />
+    <button class="nav-button" onclick="logIn()">Log In</button>
+    <button class="nav-button" onclick="signUp()">Register</button>
+  </div>
+
+  <div id="app-section" style="display:none;">
+    <a class="nav-button" href="tracker.html">Log Entries</a>
+    <a class="nav-button" href="summary.html">Cycle Data</a>
+    <a class="nav-button" href="history.html">Cycle History</a>
+    <a class="nav-button" href="information.html">Information</a>
+    <button class="nav-button" onclick="downloadPDF()">Download PDF</button>
+    <button class="nav-button" onclick="logOut()">Logout</button>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+    apiKey: "AIzaSyByvnVx2aZEldUfqS2c6VNC6UJRIOPvGws",
+    authDomain: "fertility-tracker-c35ff.firebaseapp.com",
+    projectId: "fertility-tracker-c35ff",
+    storageBucket: "fertility-tracker-c35ff.firebasestorage.app",
+    messagingSenderId: "775022478214",
+    appId: "1:775022478214:web:107ba4f9e0043bee75a207",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    function logIn() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => location.reload())
+        .catch(err => alert(err.message));
+    }
+
+    function signUp() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      auth.createUserWithEmailAndPassword(email, password)
+        .then(() => location.reload())
+        .catch(err => alert(err.message));
+    }
+
+    function logOut() {
+      auth.signOut().then(() => location.reload());
+    }
+
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById("auth-section").style.display = "none";
+        document.getElementById("app-section").style.display = "block";
+      } else {
+        document.getElementById("auth-section").style.display = "block";
+        document.getElementById("app-section").style.display = "none";
+      }
+    });
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script>
+    function downloadPDF() {
+      const modal = document.createElement('div');
+      modal.style.position = 'fixed';
+      modal.style.top = 0;
+      modal.style.left = 0;
+      modal.style.width = '100%';
+      modal.style.height = '100%';
+      modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+      modal.style.display = 'flex';
+      modal.style.justifyContent = 'center';
+      modal.style.alignItems = 'center';
+      modal.innerHTML = `
+        <div style="background: white; padding: 2em; border-radius: 10px; text-align: center;">
+          <h3>Select PDF to Download</h3>
+          <button onclick="generatePDF('summary.html')" style="margin: 0.5em; padding: 0.6em 1em;">Current Cycle</button>
+          <button onclick="generatePDF('history.html')" style="margin: 0.5em; padding: 0.6em 1em;">History</button>
+          <br/><br/>
+          <button onclick="this.parentElement.parentElement.remove()" style="padding: 0.4em 1em;">Cancel</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    function generatePDF(url) {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      const listener = (event) => {
+        if (event.data.renderReady) {
+          const cloneContainer = document.createElement('div');
+          cloneContainer.style.display = 'none';
+          document.body.appendChild(cloneContainer);
+
+          const interval = setInterval(() => {
+            const doc = iframe.contentDocument;
+            if (doc && doc.readyState === 'complete') {
+              clearInterval(interval);
+              cloneContainer.innerHTML = doc.body.innerHTML;
+
+              html2pdf().set({
+                margin: 0.5,
+                filename: url.includes('summary') ? 'Current_Cycle.pdf' : 'Cycle_History.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+              }).from(cloneContainer).save().then(() => {
+                window.removeEventListener('message', listener);
+                document.body.removeChild(cloneContainer);
+                document.body.removeChild(iframe);
+                document.body.removeChild(document.body.lastChild); // remove modal
+              });
+            }
+          }, 300);
+        }
+      };
+
+      window.addEventListener('message', listener);
+    }
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js').then(() => {
+        console.log('Service Worker Registered');
+      }).catch(console.error);
+    }
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      const installBtn = document.createElement("button");
+      installBtn.textContent = "Install App";
+      installBtn.className = "nav-button";
+      installBtn.onclick = () => e.prompt();
+      document.body.appendChild(installBtn);
+    });
+  </script>
+</body>
+</html>
+
+
+
+

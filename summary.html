@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cycle Summary</title>
+
+  <!-- External libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/calendar-render.js"></script>
+
+  <style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #fffafc;
+    padding: 1em;
+    text-align: center;
+  }
+  h1, h2 {
+    margin: 0.3em 0;
+  }
+  .nav-button {
+    display: inline-block;
+    margin: 1em 0;
+    background: #c4d7b2;
+    color: white;
+    padding: 0.8em 1.5em;
+    border-radius: 20px;
+    text-decoration: none;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+  }
+  th, td {
+    padding: 0.5em;
+    border: 1px solid #ccc;
+    text-align: center;
+  }
+  th {
+    background: #eeb7c2;
+    color: white;
+  }
+
+  /* Legend styling */
+  .legends-container {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    margin: 1em 0;
+    border: 1px solid #ccc;
+    padding: 0.5em;
+    border-radius: 6px;
+    background: #fff;
+  }
+  .legend-wrapper {
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    padding: 0.4em 0.8em;
+    font-size: 0.8em;
+    text-align: left;
+  }
+  .legend-wrapper div {
+    font-weight: bold;
+    margin-bottom: 0.4em;
+  }
+  .legend-item {
+    display: inline-block;
+    margin: 0.2em 0.4em 0.2em 0;
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  .legend-item.day1      { background: #e76f8a; color: #fff; }
+  .legend-item.period    { background: #f6b1b7; }
+  .legend-item.fertile   { background: #8ecae6; }
+  .legend-item.surge     { background: #d15fa7; color: #fff; }
+  .legend-item.ovulation { background: #3f51b5; color: #fff; }
+  .legend-item.luteal    { background: #c8e6c9; }
+  .legend-item.pred-period   { /* for predicted period icon */ }
+  .legend-item.pred-fertile  { /* for 🔵 */ }
+  .legend-item.pred-ovulation{ /* for 🔷 */ }
+
+  /* Calendar controls (Prev / Label / Next) */
+  .calendar-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0.5em 0;
+    flex-wrap: nowrap;
+  }
+  .calendar-controls button {
+    padding: 0.4em 0.8em;
+    border: none;
+    border-radius: 4px;
+    background: #c4d7b2;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9em;
+  }
+  #monthLabel {
+    font-weight: bold;
+    font-size: 0.9em;
+    white-space: nowrap;
+  }
+
+  /* Calendar grid */
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    margin-bottom: 1.5em;
+  }
+  .weekday {
+    font-weight: bold;
+    text-align: center;
+  }
+  .day-box {
+    padding: 0.6em 0;
+    border-radius: 6px;
+    background: #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-height: 3.5em;
+    position: relative;
+  }
+  .deep-red { background: #e76f8a !important; }
+  .red      { background: #f6b1b7 !important; }
+  .day-box.fertile   { background: #8ecae6 !important; border: 2px solid #4a90e2; }
+  .day-box.surge     { background: #d15fa7 !important; color: white; }
+  .day-box.ovulation { background: #3f51b5 !important; color: white; }
+  .day-box.luteal    { background: #c8e6c9 !important; }
+
+  /* Chart containers */
+  .chart-container {
+    margin: 2em auto;
+    max-width: 900px;
+  }
+  .chart-container h2 {
+    margin-bottom: 0.5em;
+  }
+
+  @media (max-width: 600px) {
+    .legends-container {
+      flex-direction: column;
+    }
+    .legend-wrapper {
+      width: 90%;
+    }
+    .calendar-controls {
+      flex-wrap: wrap;
+    }
+  }
+</style>
+
+
+</head>
+<body>
+  <h1>Cycle Summary</h1>
+  <a class="nav-button" href="index.html">← Back to Home</a>
+
+  <h2>Today's Summary</h2>
+  <table id="summaryTable">
+    <thead>
+      <tr><th>Date</th><th>CD</th><th>BBT</th><th>LH</th><th>DPO</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div style="margin:1em 0; text-align:center;">
+    <label for="cycleSelect">Show cycle starting:</label>
+    <select id="cycleSelect"></select>
+  </div>
+
+<div class="legends-container">
+  <div class="legend-wrapper">
+    <div>Confirmed States</div>
+    <span style="background:#e76f8a;color:white;padding:0.2em;border-radius:4px;">Day 1</span>
+    <span style="background:#f6b1b7;padding:0.2em;border-radius:4px;">Period</span>
+    <span style="background:#8ecae6;padding:0.2em;border-radius:4px;">Fertile</span>
+    <span style="background:#d15fa7;color:white;padding:0.2em;border-radius:4px;">Surge</span>
+    <span style="background:#3f51b5;color:white;padding:0.2em;">Ovulation</span>
+    <span style="background:#c8e6c9;padding:0.2em;">Luteal</span>
+  </div>
+  <div class="legend-wrapper">
+    <div>Predicted States</div>
+    <span style="padding:0.2em;border-radius:4px;">🩸 Period</span>
+    <span style="padding:0.2em;border-radius:4px;">🔵 Fertile</span>
+    <span style="padding:0.2em;border-radius:4px;">🔷 Ovulation</span>
+  </div>
+</div>
+
+
+  <div class="calendar-controls">
+    <button onclick="changeCycle(-1)">← Prev Cycle</button>
+    <span id="monthLabel"></span>
+    <button onclick="changeCycle(1)">Next Cycle →</button>
+  </div>
+
+  <div class="calendar-grid" id="calendarGrid">
+    <div class="weekday">Sun</div><div class="weekday">Mon</div><div class="weekday">Tue</div>
+    <div class="weekday">Wed</div><div class="weekday">Thu</div><div class="weekday">Fri</div><div class="weekday">Sat</div>
+  </div>
+
+  <div class="chart-container"><h2>BBT & LH</h2><canvas id="bbtChart"></canvas></div>
+  <div class="chart-container"><h2>Cervical Mucus</h2><canvas id="cmChart"></canvas></div>
+  <div class="chart-container"><h2>Symptoms</h2><canvas id="symptomsChart"></canvas></div>
+  <div class="chart-container"><h2>Mood</h2><canvas id="moodChart"></canvas></div>
+  <div class="chart-container"><h2>Sex</h2><canvas id="sexChart"></canvas></div>
+
+  <script>
+let currentUserUID = null;
+let bbtChart, cmChart, symptomsChart, moodChart, sexChart;
+
+function formatDate(d) {
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
+
+    async function loadEntries() {
+      const L = await db.collection('entries').where('uid','==',currentUserUID).orderBy('entryDate').get();
+      const S = await db.collection('users').doc(currentUserUID).collection('entries').orderBy('entryDate').get();
+      return [...L.docs, ...S.docs].map(d=>d.data()).sort((a,b)=>new Date(a.entryDate)-new Date(b.entryDate));
+    }
+
+    function buildCycles(entries) {
+      const starts = entries.filter(e=>(e.phase||'').toLowerCase()==='day1-period')
+        .map(e=>new Date(e.entryDate)).sort((a,b)=>a-b);
+      return starts.map((sd,i)=>{
+        const ed = starts[i+1] || null;
+        const ce = entries.filter(e=>{
+          const d = new Date(e.entryDate);
+          return d >= sd && (!ed || d < ed);
+        });
+        return { start: formatDate(sd), entries: ce };
+      });
+    }
+
+    function buildCycleBoundaries(entries) {
+      const day1Dates = entries
+        .filter(e => (e.phase || '').toLowerCase() === 'day1-period')
+        .map(e => new Date(e.entryDate))
+        .sort((a,b) => a - b);
+
+      let boundaries = [];
+      for(let i=0; i < day1Dates.length; i++) {
+        const start = day1Dates[i];
+        let end;
+        if (i+1 < day1Dates.length) {
+          end = new Date(day1Dates[i+1]);
+          end.setDate(end.getDate() - 1);
+        } else {
+          end = new Date();
+        }
+        if (end < start) end = new Date(start);
+        boundaries.push({start, end});
+      }
+      return boundaries;
+    }
+
+    function renderTable(cycle) {
+      const tbody = document.querySelector('#summaryTable tbody'); 
+      tbody.innerHTML = '';
+      const todayISO = formatDate(new Date());
+      const todays = cycle.filter(e=>formatDate(e.entryDate)===todayISO);
+      if (!todays.length) return;
+      const t = todays.find(e=>e.phase) || todays[0];
+      const cd = Math.floor((new Date(t.entryDate) - new Date(cycle[0].entryDate))/86400000) + 1;
+      const bbtE = todays.find(e=>{ const v=parseFloat(e.bbt); return !isNaN(v) && v>0; });
+      const bbt = bbtE ? parseFloat(bbtE.bbt).toFixed(2) : '-';
+      const lhVals = todays.map(e=>parseFloat(e.opk)).filter(v=>!isNaN(v) && v>0);
+      const lh = lhVals.length ? Math.max(...lhVals).toFixed(2) : '-';
+      let dpo = '-', surge = cycle.find(e=>{ const v=parseFloat(e.opk); return !isNaN(v) && v>=1; });
+      if (surge) {
+        const diff = Math.floor((new Date(t.entryDate) - new Date(surge.entryDate))/86400000);
+        dpo = diff >= 2 ? diff - 1 : 0;
+      }
+      let phase = t.phase || '-';
+      if (phase.toLowerCase()==='post-ovulation' && surge) {
+        const ov = new Date(surge.entryDate); ov.setDate(ov.getDate() + 1);
+        phase = new Date(t.entryDate) <= ov ? 'Ovulation' : 'Luteal';
+      }
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${t.entryDate}</td><td>${cd}</td><td>${bbt}</td><td>${lh}</td><td>${dpo}</td>`;
+      tbody.appendChild(tr);
+    }
+
+  function renderCharts(cycle) {
+  // BBT & LH
+  const bbtData = cycle.filter(e => { const v = parseFloat(e.bbt); return !isNaN(v) && v > 0; });
+  const lhData = cycle.filter(e => { const v = parseFloat(e.opk); return !isNaN(v) && v > 0; });
+  const labels = Array.from(new Set([...bbtData, ...lhData].map(e => formatDate(e.entryDate)))).sort();
+
+  if (bbtChart) bbtChart.destroy();
+  bbtChart = new Chart(document.getElementById('bbtChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'BBT', data: labels.map(d => { const e = bbtData.find(x => formatDate(x.entryDate) === d); return e ? +e.bbt : null; }), borderColor: 'purple', spanGaps: true, yAxisID: 'y' },
+        { label: 'LH', data: labels.map(d => { const e = lhData.find(x => formatDate(x.entryDate) === d); return e ? +e.opk : null; }), borderColor: 'yellow', spanGaps: true, yAxisID: 'y1' }
+      ]
+    }, options: {
+      responsive: true, interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'BBT (°C)' } },
+        y1: { type: 'linear', position: 'right', title: { display: true, text: 'LH (OPK)' }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+
+   // Cervical Mucus — support both multi-select arrays and legacy single values
+  const cmTypes = ['Dry', 'Creamy', 'Sticky', 'Watery', 'Egg White', 'Lotion Like', 'Increased', 'Decreased'];
+  const cmCounts = cmTypes.reduce((acc, type) => {
+    acc[type] = 0;
+    return acc;
+  }, {});
+
+  cycle.forEach(entry => {
+    if (entry.cm) {
+      if (Array.isArray(entry.cm)) {
+        entry.cm.forEach(type => {
+          if (cmCounts.hasOwnProperty(type)) {
+            cmCounts[type]++;
+          }
+        });
+      } else if (typeof entry.cm === 'string' && cmCounts.hasOwnProperty(entry.cm)) {
+        cmCounts[entry.cm]++;
+      }
+    }
+  });
+
+  if (cmChart) cmChart.destroy();
+  cmChart = new Chart(document.getElementById('cmChart'), {
+    type: 'bar',
+    data: {
+      labels: cmTypes,
+      datasets: [{
+        label: 'CM Entries',
+        data: cmTypes.map(type => cmCounts[type]),
+        backgroundColor: '#8ecae6'
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+
+  // Symptoms
+  const symMap = { Spotting: '#f2c28e', Cramps: '#f28e8e', Breasts: '#c3aed6', Digestive: '#a0d9b4' };
+  const symCounts = { Spotting: 0, Cramps: 0, Breasts: 0, Digestive: 0 };
+  cycle.forEach(e => {
+    if (e.spotting && e.spotting !== 'none') symCounts.Spotting++;
+    if (e.cramps && e.cramps !== 'none') symCounts.Cramps++;
+    if (e.breastChanges && e.breastChanges !== 'none') symCounts.Breasts++;
+    if (e.digestive && e.digestive !== 'none') symCounts.Digestive++;
+  });
+  if (symptomsChart) symptomsChart.destroy();
+  symptomsChart = new Chart(document.getElementById('symptomsChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(symCounts),
+      datasets: [{
+        label: 'Symptom Count',
+        data: Object.values(symCounts),
+        backgroundColor: Object.keys(symCounts).map(k => symMap[k])
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  // Mood
+  const moods = ['Calm', 'Happy', 'Irritable', 'Low'];
+  const moodCounts = moods.reduce((a, m) => ({ ...a, [m]: 0 }), {});
+  cycle.forEach(e => { if (moods.includes(e.mood)) moodCounts[e.mood]++; });
+  if (moodChart) moodChart.destroy();
+  moodChart = new Chart(document.getElementById('moodChart'), {
+    type: 'bar',
+    data: {
+      labels: moods,
+      datasets: [{ label: 'Mood Entries', data: moods.map(m => moodCounts[m]), backgroundColor: '#ffd166' }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  // Sex
+  const sexDays = cycle.filter(e => e.sex && e.sex.toLowerCase() === 'yes');
+  const sexCounts = {};
+  sexDays.forEach(e => {
+    const d = formatDate(e.entryDate);
+    sexCounts[d] = (sexCounts[d] || 0) + 1;
+  });
+  if (sexChart) sexChart.destroy();
+  sexChart = new Chart(document.getElementById('sexChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(sexCounts),
+      datasets: [{ label: 'Sex', data: Object.values(sexCounts), backgroundColor: '#f67280' }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+
+  // — declare global history array —
+  
+
+
+async function run() {
+  console.log('run() started');
+
+  // 1. Load all entries
+  const entries = await loadEntries();
+
+  // 2. Seed the calendar module with the full history exactly once
+  window.initializeCycleView(entries);
+
+  console.log('Entries loaded:', entries.length);
+
+  // 3. Keep a local copy for summary tables/charts
+  allEntries = entries;
+
+  // 4. Build discrete cycles for the dropdown
+  allCycles = buildCycles(entries);
+  console.log('Built allCycles:', allCycles.length);
+
+  
+  // 6. Populate your cycle selector
+  console.log('Rendering initial cycle data');
+  const sel = document.getElementById('cycleSelect');
+  sel.innerHTML = '';
+  allCycles.forEach((c, i) => sel.add(new Option(c.start, i)));
+
+  // 7. Default to the most recent cycle
+  const initialIdx = allCycles.length - 1;
+  sel.value = initialIdx;
+
+  // 8. Handle user switching cycles
+  sel.onchange = () => {
+    const idx = parseInt(sel.value, 10);
+    renderTable(allCycles[idx].entries);
+    renderCharts(allCycles[idx].entries);
+    const { start, end } = cycleBoundaries[idx] || {};
+    if (start && end) {
+      renderCycleCalendar(allCycles[idx].entries, start, end);
+      const label = document.getElementById('monthLabel');
+      if (label) label.textContent = `Cycle ${idx + 1}`;
+      currentCycleIndex = idx;
+    }
+  };
+
+changeCycle(0);
+
+  
+}
+
+auth.onAuthStateChanged(u => {
+  if (!u) return window.location.href = 'index.html';
+  currentUserUID = u.uid;
+  console.log('User logged in:', currentUserUID);
+  run();
+});</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80" viewBox="0 0 160 80">
+  <rect width="160" height="80" rx="12" fill="#B8CBB8"/>
+  <text x="50%" y="40%" dominant-baseline="middle" text-anchor="middle"
+        font-size="28" font-weight="bold" fill="#fff" font-family="Segoe UI">LLP</text>
+  <text x="50%" y="70%" dominant-baseline="middle" text-anchor="middle"
+        font-size="14" fill="#fff" font-family="Segoe UI">Fertility Tracker</text>
+</svg>
