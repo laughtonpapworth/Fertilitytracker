@@ -66,7 +66,7 @@ function computeAverages(entries) {
  const fertDates = cycleEntries
   .filter(e => {
     const v = parseFloat(e.opk);
-    return !isNaN(v) && v >= 0.1 && v <= 1;
+    return !isNaN(v) && v >= 0.25 && v <= 1;
   })
   .map(e => new Date(e.entryDate))
   .sort((a, b) => a - b);
@@ -283,7 +283,7 @@ function applyLoggedFertile(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.fertile').forEach(b => b.classList.remove('fertile'));
   entries.forEach(e => {
     const v = parseFloat(e.opk);
-    if (isNaN(v) || v < 0.1 || v >= 1.0) return;
+    if (isNaN(v) || v < 0.25 || v >= 1.0) return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
