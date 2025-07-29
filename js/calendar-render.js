@@ -16,7 +16,7 @@ function pad(num) {
 // Helper: YYYY-MM-DD local ISO
 function formatISO(input) {
   const d = new Date(input);
-  return ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())};
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 // Normalize phase string to detect Day 1 Period
@@ -172,7 +172,7 @@ while (day <= end) {
   const cell = document.createElement('div');
   cell.className = 'day-box';
   cell.dataset.date = iso;
-  cell.innerHTML = <div class="date-label">${day.getDate()}</div>;
+  cell.innerHTML = '<div class="date-label">${day.getDate()}</div>';
   grid.appendChild(cell);
   day.setDate(day.getDate() + 1);
 }
@@ -237,7 +237,7 @@ function renderUnifiedCalendar(entries, month, year) {
     cell.className = 'day-box';
     const iso = ${year}-${pad(month + 1)}-${pad(d)};
     cell.dataset.date = iso;
-    cell.innerHTML = <div class="date-label">${d}</div>;
+    cell.innerHTML = `<div class="date-label">${d}</div>`;
     grid.appendChild(cell);
   }
 
