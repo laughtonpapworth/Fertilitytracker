@@ -300,7 +300,7 @@ function applyLoggedSurge(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.surge').forEach(b => b.classList.remove('surge'));
   entries.forEach(e => {
     const v = parseFloat(e.opk);
-    if (isNaN(v) || v < 1) return;
+    if (isNaN(v) || v < 0.5) return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
@@ -395,7 +395,7 @@ function applyLoggedSymptoms(entries, startDate, endDate) {
 function applyLoggedLuteal(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.luteal').forEach(b => b.classList.remove('luteal'));
   const ovIsos = entries
-    .filter(e => parseFloat(e.opk) >= 1)
+    .filter(e => parseFloat(e.opk) >= 0.5)
     .map(e => {
       const d = new Date(e.entryDate);
       d.setDate(d.getDate() + 1);
