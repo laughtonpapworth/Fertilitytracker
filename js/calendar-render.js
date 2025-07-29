@@ -66,7 +66,7 @@ function computeAverages(entries) {
  const fertDates = cycleEntries
   .filter(e => {
     const v = parseFloat(e.opk);
-    return !isNaN(v) && v >= 0.35 && v <= 0.50;
+    return !isNaN(v) && v >= 0.3 && v <= 0.5;
   })
   .map(e => new Date(e.entryDate))
   .sort((a, b) => a - b);
