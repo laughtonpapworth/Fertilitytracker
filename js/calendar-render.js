@@ -283,7 +283,7 @@ function applyLoggedFertile(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.fertile').forEach(b => b.classList.remove('fertile'));
   entries.forEach(e => {
     const v = parseFloat(e.opk);
-    if (isNaN(v) || v < 0.3 || v >= 1) return;
+    if (isNaN(v) || v < 0.1 || v >= 1) return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
