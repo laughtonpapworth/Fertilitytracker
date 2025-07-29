@@ -321,10 +321,18 @@ function applyLoggedOvulation(entries, startDate, endDate) {
     .sort();
   day1Isos.forEach((startIso, idx) => {
     const endIso = day1Isos[idx + 1] || null;
-    const surges = entries
-      .map(e => ({ iso: formatISO(e.entryDate), v: parseFloat(e.opk) }))
-      .filter(o => !isNaN(o.v) && o.v >= 1 && o.iso > startIso && (!endIso || o.iso < endIso))
-      .map(o => o.iso);
+   const surges = entries
+  .filter(e => {
+    const v = parseFloat(e.opk);
+    const result = (e.opkResult || '').toLowerCase();
+    return (
+      (!isNaN(v) && v >= 1) ||
+      result === 'surge' || result === 'solid' || result === 'solid face'
+    );
+  })
+  .map(e => formatISO(e.entryDate))
+  .filter(iso => iso > startIso && (!endIso || iso < endIso))
+  .sort();
     if (!surges.length) return;
     const last = surges.pop();
     const [y, m, d] = last.split('-').map(Number);
