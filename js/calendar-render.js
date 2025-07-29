@@ -66,7 +66,7 @@ function computeAverages(entries) {
  const fertDates = cycleEntries
   .filter(e => {
     const v = parseFloat(e.opk);
-    return !isNaN(v) && v >= 0.25 && v <= 1;
+    return !isNaN(v) && v >= 0.5 && v <= 1;
   })
   .map(e => new Date(e.entryDate))
   .sort((a, b) => a - b);
@@ -172,7 +172,7 @@ while (day <= end) {
   const cell = document.createElement('div');
   cell.className = 'day-box';
   cell.dataset.date = iso;
-  cell.innerHTML = '<div class="date-label">${day.getDate()}</div>';
+  cell.innerHTML = `<div class="date-label">${day.getDate()}</div>`;
   grid.appendChild(cell);
   day.setDate(day.getDate() + 1);
 }
@@ -213,7 +213,7 @@ function renderUnifiedCalendar(entries, month, year) {
       "July","August","September","October","November","December"
     ];
     const shortYear = String(year).slice(-2);
-    label.textContent = ${monthNames[month]}-${shortYear};
+    label.textContent = `${monthNames[month]}-${shortYear}`;
   }
 
   const grid = document.getElementById('calendarGrid');
@@ -235,7 +235,7 @@ function renderUnifiedCalendar(entries, month, year) {
   for (let d = 1; d <= daysCount; d++) {
     const cell = document.createElement('div');
     cell.className = 'day-box';
-    const iso = ${year}-${pad(month + 1)}-${pad(d)};
+    const iso = `${year}-${pad(month + 1)}-${pad(d)}`;
     cell.dataset.date = iso;
     cell.innerHTML = `<div class="date-label">${d}</div>`;
     grid.appendChild(cell);
@@ -272,7 +272,7 @@ function applyLoggedPeriod(entries, startDate, endDate) {
       const dt = new Date(start);
       dt.setDate(start.getDate() + i);
       if (dt >= startDate && dt <= endDate) {
-        const box = document.querySelector(.day-box[data-date="${formatISO(dt)}"]);
+        const box = document.querySelector(`.day-box[data-date="${formatISO(dt)}"]`);
         if (box) box.classList.add(i === 0 ? 'deep-red' : 'red');
       }
     }
@@ -283,12 +283,12 @@ function applyLoggedFertile(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.fertile').forEach(b => b.classList.remove('fertile'));
   entries.forEach(e => {
     const v = parseFloat(e.opk);
-    if (isNaN(v) || v < 0.25 || v >= 1.0) return;
+    if (isNaN(v) || v < 0.5 || v >= 1) return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
     if (dt >= startDate && dt <= endDate) {
-      const box = document.querySelector(.day-box[data-date="${iso}"]);
+      const box = document.querySelector(`.day-box[data-date="${iso}"]`);
       if (box && !box.classList.contains('deep-red') && !box.classList.contains('red')) {
         box.classList.add('fertile');
       }
@@ -305,7 +305,7 @@ function applyLoggedSurge(entries, startDate, endDate) {
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
     if (dt >= startDate && dt <= endDate) {
-      const box = document.querySelector(.day-box[data-date="${iso}"]);
+      const box = document.querySelector(`.day-box[data-date="${iso}"]`);
       if (box && !box.classList.contains('deep-red') && !box.classList.contains('red')) {
         box.classList.add('surge');
       }
@@ -321,18 +321,10 @@ function applyLoggedOvulation(entries, startDate, endDate) {
     .sort();
   day1Isos.forEach((startIso, idx) => {
     const endIso = day1Isos[idx + 1] || null;
-   const surges = entries
-  .filter(e => {
-    const v = parseFloat(e.opk);
-    const result = (e.opkResult || '').toLowerCase();
-    return (
-      (!isNaN(v) && v >= 1) ||
-      result === 'surge' || result === 'solid' || result === 'solid face'
-    );
-  })
-  .map(e => formatISO(e.entryDate))
-  .filter(iso => iso > startIso && (!endIso || iso < endIso))
-  .sort();
+    const surges = entries
+      .map(e => ({ iso: formatISO(e.entryDate), v: parseFloat(e.opk) }))
+      .filter(o => !isNaN(o.v) && o.v >= 1 && o.iso > startIso && (!endIso || o.iso < endIso))
+      .map(o => o.iso);
     if (!surges.length) return;
     const last = surges.pop();
     const [y, m, d] = last.split('-').map(Number);
@@ -340,7 +332,7 @@ function applyLoggedOvulation(entries, startDate, endDate) {
     dt.setDate(dt.getDate() + 1);
     if (dt >= startDate && dt <= endDate) {
       const isoOv = formatISO(dt);
-      const box = document.querySelector(.day-box[data-date="${isoOv}"]);
+      const box = document.querySelector(`.day-box[data-date="${isoOv}"]`);
       if (box) {
         box.classList.remove('fertile');
         box.classList.add('ovulation');
@@ -381,7 +373,7 @@ function applyLoggedSymptoms(entries, startDate, endDate) {
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
     if (dt < startDate || dt > endDate) return;
-    const box = document.querySelector(.day-box[data-date="${iso}"]);
+    const box = document.querySelector(`.day-box[data-date="${iso}"]`);
     set.forEach(emoji => {
       if (emoji === '🩸' && periodSet.has(iso)) return;
       const span = document.createElement('span');
@@ -414,7 +406,7 @@ function applyLoggedLuteal(entries, startDate, endDate) {
     while (dt <= endDateCalc) {
       if (dt >= startDate && dt <= endDate) {
         const iso = formatISO(dt);
-        const cell = document.querySelector(.day-box[data-date="${iso}"]);
+        const cell = document.querySelector(`.day-box[data-date="${iso}"]`);
         if (cell && !cell.classList.contains('deep-red') && !cell.classList.contains('ovulation')) {
           cell.classList.add('luteal');
         }
@@ -452,7 +444,7 @@ function applyPredictedCycles({ avgCycleLength, avgFertileOffset, avgOvOffset, l
 
 function markPrediction(date, icon) {
   const iso = formatISO(date);
-  const cell = document.querySelector(.day-box[data-date="${iso}"]);
+  const cell = document.querySelector(`.day-box[data-date="${iso}"]`);
   if (!cell) return;
   const ico = document.createElement('div');
   ico.className = 'prediction';
@@ -461,7 +453,7 @@ function markPrediction(date, icon) {
 }
 function markPrediction(date, icon) {
   const iso = formatISO(date);
-  const cell = document.querySelector(.day-box[data-date="${iso}"]);
+  const cell = document.querySelector(`.day-box[data-date="${iso}"]`);
   if (!cell) return;
   const ico = document.createElement('div');
   ico.className = 'prediction';
@@ -471,7 +463,7 @@ function markPrediction(date, icon) {
 
 function changeCycle(offset) {
   // DEBUG: entering changeCycle
-  console.group(changeCycle called with offset: ${offset});
+  console.group(`changeCycle called with offset: ${offset}`);
   console.log('currentCycleIndex:', currentCycleIndex);
   console.log('allCycles.length:', allCycles.length);
   console.log('cycleBoundaries.length:', cycleBoundaries.length);
@@ -510,7 +502,7 @@ function changeCycle(offset) {
     const endM   = monthNamesShort[end.getMonth()];
     label.textContent = startM === endM
       ? startM
-      : ${startM}-${endM};
+      : `${startM}-${endM}`;
 
     console.log('Navigated to real cycle index:', newIndex);
     return;
@@ -536,7 +528,7 @@ function changeCycle(offset) {
   const pEndM   = monthNamesShort[endPred.getMonth()];
   label.textContent = pStartM === pEndM
     ? pStartM
-    : ${pStartM}-${pEndM};
+    : `${pStartM}-${pEndM}`;
 
   console.log('Navigated to predicted cycle range:', label.textContent);
 }
