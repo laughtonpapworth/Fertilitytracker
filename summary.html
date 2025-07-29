@@ -280,18 +280,11 @@ function formatDate(d) {
       const bbt = bbtE ? parseFloat(bbtE.bbt).toFixed(2) : '-';
       const lhVals = todays.map(e=>parseFloat(e.opk)).filter(v=>!isNaN(v) && v>0);
       const lh = lhVals.length ? Math.max(...lhVals).toFixed(2) : '-';
-let dpo = '-';
-let surge = cycle.find(e => {
-  const v = parseFloat(e.opk);
-  const result = (e.opkResult || '').toLowerCase();
-  return (!isNaN(v) && v >= 1) || ['surge', 'solid', 'solid face'].includes(result);
-});
-if (surge) {
-  const entryDate = new Date(t.entryDate);
-  const surgeDate = new Date(surge.entryDate);
-  const diff = Math.floor((entryDate - surgeDate) / 86400000);
-  dpo = diff >= 2 ? diff - 1 : (diff >= 0 ? 0 : '-');
-}
+      let dpo = '-', surge = cycle.find(e=>{ const v=parseFloat(e.opk); return !isNaN(v) && v>=1; });
+      if (surge) {
+        const diff = Math.floor((new Date(t.entryDate) - new Date(surge.entryDate))/86400000);
+        dpo = diff >= 2 ? diff - 1 : 0;
+      }
       let phase = t.phase || '-';
       if (phase.toLowerCase()==='post-ovulation' && surge) {
         const ov = new Date(surge.entryDate); ov.setDate(ov.getDate() + 1);
