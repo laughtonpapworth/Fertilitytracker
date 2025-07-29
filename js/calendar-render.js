@@ -79,12 +79,11 @@ function computeAverages(entries) {
     }
 
     // confirmed ovulation = last surge + 1
-    const surgeDates = cycleEntries
-      .filter(e => {
-        const v = parseFloat(e.opk);
-        return !isNaN(v) && v >= 1;
-      })
-      .map(e => new Date(e.entryDate))
+ const surgeDates = cycleEntries.filter(e => {
+  const v = parseFloat(e.opk);
+  const r = (e.opkResult || '').toLowerCase();
+  return (!isNaN(v) && v >= 1) || r === 'surge';
+}).map(e => new Date(e.entryDate))
       .sort((a, b) => a - b);
     if (surgeDates.length) {
       const ov = new Date(surgeDates.pop());
@@ -282,8 +281,10 @@ function applyLoggedPeriod(entries, startDate, endDate) {
 function applyLoggedFertile(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.fertile').forEach(b => b.classList.remove('fertile'));
   entries.forEach(e => {
-    const v = parseFloat(e.opk);
-    if (isNaN(v) || v < 0.1 || v >= 1) return;
+   const v = parseFloat(e.opk);
+const r = (e.opkResult || '').toLowerCase();
+if (r === 'surge') return; // surge shouldn't be marked fertile
+if (isNaN(v) || v < 0.1 || v >= 1) return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
