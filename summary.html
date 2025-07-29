@@ -284,7 +284,7 @@ let dpo = '-';
 let surge = cycle.find(e => {
   const v = parseFloat(e.opk);
   const result = (e.opkResult || '').toLowerCase();
-  return (!isNaN(v) && v >= 0.5) || ['surge', 'solid', 'solid face'].includes(result);
+  return (!isNaN(v) && v >= 1) || ['surge', 'solid', 'solid face'].includes(result);
 });
 if (surge) {
   const entryDate = new Date(t.entryDate);
