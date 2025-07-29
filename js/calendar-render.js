@@ -284,7 +284,7 @@ function applyLoggedFertile(entries, startDate, endDate) {
    const v = parseFloat(e.opk);
 const r = (e.opkResult || '').toLowerCase();
 if (r === 'surge') return; // surge shouldn't be marked fertile
-if (isNaN(v) || v < 0.1 || v >= 1) return;
+if (isNaN(v) || v < 0.2 || v >= 1) return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
