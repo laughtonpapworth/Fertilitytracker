@@ -280,7 +280,13 @@ function formatDate(d) {
       const bbt = bbtE ? parseFloat(bbtE.bbt).toFixed(2) : '-';
       const lhVals = todays.map(e=>parseFloat(e.opk)).filter(v=>!isNaN(v) && v>0);
       const lh = lhVals.length ? Math.max(...lhVals).toFixed(2) : '-';
-      let dpo = '-', surge = cycle.find(e=>{ const v=parseFloat(e.opk); return !isNaN(v) && v>=1; });
+      let dpo = '-';
+let surge = cycle.find(e => {
+  const v = parseFloat(e.opk);
+  const r = ((e.opkResult || e.opk || '') + '').toLowerCase();
+  return (!isNaN(v) && v >= 1) || r === 'surge';
+});
+
       if (surge) {
         const diff = Math.floor((new Date(t.entryDate) - new Date(surge.entryDate))/86400000);
         dpo = diff >= 2 ? diff - 1 : 0;
