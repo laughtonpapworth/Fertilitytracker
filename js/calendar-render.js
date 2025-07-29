@@ -283,7 +283,7 @@ function applyLoggedFertile(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.fertile').forEach(b => b.classList.remove('fertile'));
   entries.forEach(e => {
     const v = parseFloat(e.opk);
-    if (isNaN(v) || v < 0.5 || v >= 1) return;
+    if (isNaN(v) || v < 0.3 || v >= 1) return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
@@ -300,7 +300,8 @@ function applyLoggedSurge(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.surge').forEach(b => b.classList.remove('surge'));
   entries.forEach(e => {
     const v = parseFloat(e.opk);
-    if (isNaN(v) || v < 1) return;
+const r = (e.opkResult || '').toLowerCase();
+if ((isNaN(v) || v < 1) && r !== 'surge') return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
@@ -315,21 +316,35 @@ function applyLoggedSurge(entries, startDate, endDate) {
 
 function applyLoggedOvulation(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.ovulation').forEach(b => b.classList.remove('ovulation'));
+
   const day1Isos = entries
     .filter(e => isDay1Phase(e.phase))
     .map(e => formatISO(e.entryDate))
     .sort();
+
   day1Isos.forEach((startIso, idx) => {
     const endIso = day1Isos[idx + 1] || null;
+
     const surges = entries
-      .map(e => ({ iso: formatISO(e.entryDate), v: parseFloat(e.opk) }))
-      .filter(o => !isNaN(o.v) && o.v >= 1 && o.iso > startIso && (!endIso || o.iso < endIso))
+      .map(e => ({
+        iso: formatISO(e.entryDate),
+        v: parseFloat(e.opk),
+        r: (e.opkResult || '').toLowerCase()
+      }))
+      .filter(o =>
+        ((o.v >= 1 && !isNaN(o.v)) || o.r === 'surge') &&
+        o.iso > startIso &&
+        (!endIso || o.iso < endIso)
+      )
       .map(o => o.iso);
+
     if (!surges.length) return;
-    const last = surges.pop();
+
+    const last = surges.pop(); // Most recent surge
     const [y, m, d] = last.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
-    dt.setDate(dt.getDate() + 1);
+    dt.setDate(dt.getDate() + 1); // Ovulation is day after surge
+
     if (dt >= startDate && dt <= endDate) {
       const isoOv = formatISO(dt);
       const box = document.querySelector(`.day-box[data-date="${isoOv}"]`);
@@ -340,6 +355,7 @@ function applyLoggedOvulation(entries, startDate, endDate) {
     }
   });
 }
+
 
 function applyLoggedSymptoms(entries, startDate, endDate) {
   document.querySelectorAll('.day-box .symptom-icon').forEach(el => el.remove());
@@ -386,22 +402,26 @@ function applyLoggedSymptoms(entries, startDate, endDate) {
 
 function applyLoggedLuteal(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.luteal').forEach(b => b.classList.remove('luteal'));
+
   const ovIsos = entries
-    .filter(e => parseFloat(e.opk) >= 1)
+    .filter(e => parseFloat(e.opk) >= 1 || (e.opkResult || '').toLowerCase() === 'surge')
     .map(e => {
       const d = new Date(e.entryDate);
-      d.setDate(d.getDate() + 1);
+      d.setDate(d.getDate() + 1); // Ovulation = day after surge
       return formatISO(d);
     })
     .sort();
+
   const day1Isos = entries
     .filter(e => isDay1Phase(e.phase))
     .map(e => formatISO(e.entryDate))
     .sort();
+
   ovIsos.forEach(ovIso => {
     const ovDate = new Date(ovIso);
     const nextDay1Iso = day1Isos.find(d1 => d1 > ovIso);
     const endDateCalc = nextDay1Iso ? new Date(nextDay1Iso) : endDate;
+
     let dt = new Date(ovDate);
     while (dt <= endDateCalc) {
       if (dt >= startDate && dt <= endDate) {
@@ -415,6 +435,7 @@ function applyLoggedLuteal(entries, startDate, endDate) {
     }
   });
 }
+
 
 /* — Predictions (period, fertile, ovulation) — */
 function applyPredictedCycles({ avgCycleLength, avgFertileOffset, avgOvOffset, lastDay1 }, count, startDate, endDate) {
