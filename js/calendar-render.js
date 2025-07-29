@@ -297,18 +297,21 @@ function applyLoggedFertile(entries, startDate, endDate) {
 }
 
 function applyLoggedSurge(entries, startDate, endDate) {
+  console.log('[Surge Detection] Entries:', entries);
   document.querySelectorAll('.day-box.surge').forEach(b => b.classList.remove('surge'));
   entries.forEach(e => {
     const v = parseFloat(e.opk);
-const r = (e.opkResult || '').toLowerCase();
-if ((isNaN(v) || v < 1) && r !== 'surge') return;
+    const r = (e.opkResult || '').toLowerCase();
+    if ((isNaN(v) || v < 1) && r !== 'surge') return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
+    console.log(`Checking Surge for ${iso}: OPK=${v}, Result=${r}`);
     if (dt >= startDate && dt <= endDate) {
       const box = document.querySelector(`.day-box[data-date="${iso}"]`);
       if (box && !box.classList.contains('deep-red') && !box.classList.contains('red')) {
         box.classList.add('surge');
+        console.log(`Marked surge on ${iso}`);
       }
     }
   });
@@ -316,45 +319,30 @@ if ((isNaN(v) || v < 1) && r !== 'surge') return;
 
 function applyLoggedOvulation(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.ovulation').forEach(b => b.classList.remove('ovulation'));
-
-  const day1Isos = entries
-    .filter(e => isDay1Phase(e.phase))
-    .map(e => formatISO(e.entryDate))
-    .sort();
-
+  const day1Isos = entries.filter(e => isDay1Phase(e.phase)).map(e => formatISO(e.entryDate)).sort();
   day1Isos.forEach((startIso, idx) => {
     const endIso = day1Isos[idx + 1] || null;
-
-    const surges = entries
-      .map(e => ({
-        iso: formatISO(e.entryDate),
-        v: parseFloat(e.opk),
-        r: (e.opkResult || '').toLowerCase()
-      }))
-      .filter(o =>
-        ((o.v >= 1 && !isNaN(o.v)) || o.r === 'surge') &&
-        o.iso > startIso &&
-        (!endIso || o.iso < endIso)
-      )
+    const surges = entries.map(e => ({ iso: formatISO(e.entryDate), v: parseFloat(e.opk), r: (e.opkResult || '').toLowerCase() }))
+      .filter(o => ((o.v >= 1 && !isNaN(o.v)) || o.r === 'surge') && o.iso > startIso && (!endIso || o.iso < endIso))
       .map(o => o.iso);
-
+    console.log(`[Ovulation] Cycle from ${startIso} to ${endIso || 'now'} found surges:`, surges);
     if (!surges.length) return;
-
-    const last = surges.pop(); // Most recent surge
+    const last = surges.pop();
     const [y, m, d] = last.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
-    dt.setDate(dt.getDate() + 1); // Ovulation is day after surge
-
+    dt.setDate(dt.getDate() + 1);
     if (dt >= startDate && dt <= endDate) {
       const isoOv = formatISO(dt);
       const box = document.querySelector(`.day-box[data-date="${isoOv}"]`);
       if (box) {
         box.classList.remove('fertile');
         box.classList.add('ovulation');
+        console.log(`Marked ovulation on ${isoOv}`);
       }
     }
   });
 }
+
 
 
 function applyLoggedSymptoms(entries, startDate, endDate) {
