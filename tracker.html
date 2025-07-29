@@ -207,12 +207,20 @@
         if (val !== null && /^\d{2}\.\d{1,2}$/.test(val))
           upsertEntry(dateInput.value, { bbt: val });
       });
-      btnLH.addEventListener('click', () => {
-        if (!requireDate()) return;
-        const val = prompt(`Enter LH/OPK (e.g. 0.85 or 1.12) for ${dateInput.value}:`);
-        if (val !== null && /^\d{1,2}(?:\.\d+)?$/.test(val))
-          upsertEntry(dateInput.value, { opk: val });
-      });
+    btnLH.addEventListener('click', () => {
+  if (!requireDate()) return;
+  const val = prompt(`Enter LH/OPK value for ${dateInput.value}:\n- You can enter a number (e.g. 0.85 or 1.12)\n- Or enter: Surge / Flashing / Solid Face`);
+  if (val !== null) {
+    const trimmed = val.trim().toLowerCase();
+    const isNumeric = /^\d{1,2}(?:\.\d+)?$/.test(trimmed);
+    const isManual = ['surge', 'flashing', 'solid face'].includes(trimmed);
+    if (isNumeric || isManual) {
+      upsertEntry(dateInput.value, { opk: val });
+    } else {
+      alert('Invalid LH/OPK value. Enter a number or: Surge / Flashing / Solid Face');
+    }
+  }
+});
       btnSymptoms.addEventListener('click', () => {
         if (!requireDate()) return;
         ['Cramps','Bloating','Nausea','NipplePain','BreastPain','BreastIncrease']
