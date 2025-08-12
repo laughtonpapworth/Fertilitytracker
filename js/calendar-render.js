@@ -66,7 +66,7 @@ function computeAverages(entries) {
  const fertDates = cycleEntries
   .filter(e => {
     const v = parseFloat(e.opk);
-    return !isNaN(v) && v >= 0.3 && v <= 1;
+    return !isNaN(v) && v >= 0.3 && v <= 0.74;
   })
   .map(e => new Date(e.entryDate))
   .sort((a, b) => a - b);
@@ -82,7 +82,7 @@ function computeAverages(entries) {
  const surgeDates = cycleEntries.filter(e => {
   const v = parseFloat(e.opk);
   const r = (e.opkResult || '').toLowerCase();
-  return (!isNaN(v) && v >= 1) || r === 'surge';
+  return (!isNaN(v) && v >= 0.75) || r === 'surge';
 }).map(e => new Date(e.entryDate))
       .sort((a, b) => a - b);
     if (surgeDates.length) {
