@@ -1,556 +1,745 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>History</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>History</title>
 
-  <!-- Firebase (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js"></script>
+<!-- Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
 
-  <style>
-    :root{ --bg:#fffafc; --ink:#222; --muted:#6b6b6b; --card:#ffffff; --brand:#88a58d; --red:#f28b82; --green:#a5d6a7; --blue:#8ab4f8; --amber:#fbc02d; --purple:#d15fa7; }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
-    header{position:sticky;top:0;background:var(--bg);z-index:10;padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px}
-    header h1{font-size:18px;margin:0;font-weight:600}
-    header .spacer{flex:1}
-    header button{border:none;background:var(--brand);color:#fff;padding:8px 12px;border-radius:10px;font-weight:600;cursor:pointer}
+<style>
+:root{
+  --bg:#fffafc; --ink:#222; --muted:#6b6b6b; --card:#ffffff; --brand:#88a58d;
+  --red:#f28b82; --green:#a5d6a7; --blue:#8ab4f8; --amber:#fbc02d; --purple:#d15fa7;
+  --line:#e9ecef; --chip:#f1f3f4;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
+header{position:sticky;top:0;background:var(--bg);z-index:10;padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px}
+header h1{font-size:18px;margin:0;font-weight:600}
+header .spacer{flex:1}
+header button{border:none;background:var(--brand);color:#fff;padding:8px 12px;border-radius:10px;font-weight:600;cursor:pointer}
+header .ghost{background:#e9efe9;color:#2f4733}
 
-    .cards{display:flex;gap:10px;overflow:auto;padding:12px 12px 4px}
-    .card{min-width:160px;background:var(--card);border:1px solid #eee;border-radius:14px;padding:10px;box-shadow:0 2px 6px rgba(0,0,0,.04)}
-    .card h3{font-size:12px;color:var(--muted);margin:0 0 6px}
-    .card .value{font-size:22px;font-weight:700}
-    .card .sub{font-size:12px;color:var(--muted)}
+.cards{display:flex;gap:10px;overflow:auto;padding:12px 12px 4px}
+.card{min-width:160px;background:var(--card);border:1px solid #eee;border-radius:14px;padding:10px;box-shadow:0 2px 6px rgba(0,0,0,.04)}
+.card h3{font-size:12px;color:var(--muted);margin:0 0 6px}
+.card .value{font-size:22px;font-weight:700}
+.card .sub{font-size:12px;color:var(--muted)}
 
-    .section{padding:8px 12px}
-    .section h2{font-size:16px;margin:8px 0}
+.section{padding:8px 12px}
+.section h2{font-size:16px;margin:8px 0}
 
-    .ribbons{display:flex;flex-direction:column;gap:10px}
-    .ribbon{background:var(--card);border:1px solid #eee;border-radius:12px;padding:10px}
-    .ribbon .label{font-weight:600;font-size:13px;margin-bottom:6px;display:flex;justify-content:space-between;color:var(--muted)}
-    .bar{position:relative;height:10px;background:#f3f3f3;border-radius:999px;overflow:hidden}
-    .band{position:absolute;top:0;bottom:0;border-radius:999px}
+.ribbons{display:flex;flex-direction:column;gap:10px}
+.ribbon{background:var(--card);border:1px solid #eee;border-radius:12px;padding:10px}
+.ribbon .label{font-weight:600;font-size:13px;margin-bottom:6px;display:flex;justify-content:space-between;color:var(--muted)}
+.bar{position:relative;height:10px;background:#f3f3f3;border-radius:999px;overflow:hidden}
+.band{position:absolute;top:0;bottom:0;border-radius:999px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}
+.swatch{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle}
 
-    .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}
-    .swatch{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;padding:8px 12px}
+@media(min-width:560px){.grid{grid-template-columns:1fr 1fr}}
 
-    .grid{display:grid;grid-template-columns:1fr;gap:12px;padding:8px 12px}
-    @media(min-width:560px){.grid{grid-template-columns:1fr 1fr}}
+.panel{background:var(--card);border:1px solid #eee;border-radius:12px;padding:10px}
+.panel h3{font-size:14px;margin:0 0 4px}
+.panel .caption{font-size:12px;color:var(--muted);margin-bottom:8px}
+.reasons{font-size:12px;color:var(--ink);display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.chip{display:inline-block;background:var(--chip);border:1px solid #e2e6ea;border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}
+.line{font-size:12px}
 
-    .panel{background:var(--card);border:1px solid #eee;border-radius:12px;padding:10px}
-    .panel h3{font-size:14px;margin:0 0 4px}
-    .panel .caption{font-size:12px;color:var(--muted);margin-bottom:8px}
-    .kpi{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
-    .kpi .big{font-size:24px;font-weight:800}
-    .kpi .small{font-size:12px;color:var(--muted)}
-    .reasons{font-size:12px;color:var(--ink);display:flex;flex-direction:column;gap:4px;margin-top:6px}
-    .chip{display:inline-block;background:#f1f3f4;border:1px solid #e2e6ea;border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}
-    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
-    .line{font-size:12px}
+/* BBT rise bars / dots */
+.riseRow{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px}
+.delta{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px}
+.delta.good{background:rgba(165,214,167,.25);border:1px solid #a5d6a7}
+.delta.warn{background:rgba(242,139,130,.25);border:1px solid #f28b82}
 
-    /* Sex coverage pills in ribbons */
-    .pills{display:flex;gap:4px;margin-top:6px}
-    .pill{width:10px;height:10px;border-radius:50%;background:#ddd}
-    .pill.on{background:var(--blue)}
+/* Matrices */
+.matrix{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.matrix th,.matrix td{border:1px solid #eee;padding:6px;text-align:center}
+.matrix th{background:#fafafa;font-weight:600;color:var(--muted)}
+.ok{color:#2e7d32;font-weight:700}
+.no{color:#c62828;font-weight:700}
 
-    /* Matrices */
-    .matrix{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
-    .matrix th,.matrix td{border:1px solid #eee;padding:6px;text-align:center}
-    .matrix th{background:#fafafa;font-weight:600;color:var(--muted)}
-    .ok{color:#2e7d32;font-weight:700}
-    .no{color:#c62828;font-weight:700}
+/* Surge strip */
+#surgeCanvas{width:100%;height:90px;border:1px solid #eee;border-radius:8px;background:#fff}
 
-    /* Surge strip */
-    #surgeCanvas{width:100%;height:90px;border:1px solid #eee;border-radius:8px;background:#fff}
+/* Sex timing row */
+.pillRow{display:flex;align-items:center;gap:8px}
+.pillLbl{width:28px;font-size:11px;color:var(--muted);text-align:right}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid #cbd5e1;background:#fff}
+.dot.on{background:var(--blue);border-color:var(--blue)}
+.dot.opt{opacity:.45}
 
-    @media print{ header, .filterBtn, .exportBtn, .legend {display:none!important} .cards{flex-wrap:wrap} .card{min-width:0;width:24%} }
-  </style>
+/* Filters sheet */
+.sheet{position:fixed;left:0;right:0;bottom:0;transform:translateY(100%);background:#fff;border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -6px 24px rgba(0,0,0,.2);transition:transform .25s;z-index:50}
+.sheet.open{transform:translateY(0)}
+.sheet .grab{width:40px;height:4px;background:#ddd;border-radius:999px;margin:10px auto}
+.sheet .content{padding:8px 12px}
+.row{display:flex;align-items:center;justify-content:space-between;margin:10px 0}
+.row label{font-size:14px;color:var(--muted)}
+.sheet .actions{display:flex;gap:8px;justify-content:flex-end}
+
+/* Post-ovulation BBT dots */
+.bbtBar{display:flex;gap:4px;align-items:center;min-height:16px;flex-wrap:wrap}
+.bbtDot{width:14px;height:14px;border-radius:3px;border:1px solid #cbd5e1;background:#111}
+.bbtDot.red{background:var(--red);}      /* +0.10..+0.19 */
+.bbtDot.green{background:var(--green);}  /* ≥ +0.20 */
+.bbtDot.base{background:#111;}           /* ≤ +0.09 */
+</style>
 </head>
 <body>
-  <header>
-    <h1>History</h1>
-    <div class="spacer"></div>
-    <button class="filterBtn" id="filterBtn">Filters</button>
-    <button class="exportBtn" id="exportBtn">Share Summary</button>
-  </header>
+<header>
+  <button class="ghost" id="homeBtn">Home</button>
+  <h1>History</h1>
+  <div class="spacer"></div>
+  <button class="filterBtn" id="filterBtn">Filters</button>
+</header>
 
-  <div class="cards" id="cards"></div>
+<div class="cards" id="cards"></div>
 
-  <div class="section">
-    <h2>Completed Cycles</h2>
-    <div class="ribbons" id="ribbons"></div>
-    <div class="legend">
-      <span><span class="swatch" style="background:var(--red)"></span>Period</span>
-      <span><span class="swatch" style="background:var(--amber)"></span>Fertile</span>
-      <span><span class="swatch" style="background:var(--purple)"></span>Surge</span>
-      <span><span class="swatch" style="background:var(--blue)"></span>Ovulation</span>
-      <span><span class="swatch" style="background:var(--green)"></span>Luteal</span>
-    </div>
+<div class="section">
+  <h2>Completed Cycles</h2>
+  <div class="ribbons" id="ribbons"></div>
+  <div class="legend">
+    <span><span class="swatch" style="background:var(--red)"></span>Period</span>
+    <span><span class="swatch" style="background:var(--amber)"></span>Fertile</span>
+    <span><span class="swatch" style="background:var(--purple)"></span>Surge</span>
+    <span><span class="swatch" style="background:var(--blue)"></span>Ovulation</span>
+    <span><span class="swatch" style="background:var(--green)"></span>Luteal</span>
+  </div>
+</div>
+
+<div class="section"><h2>Insights & Trends</h2></div>
+<div class="grid">
+  <div class="panel">
+    <h3>LH surge day (CD)</h3>
+    <div class="caption" id="surgeStats">—</div>
+    <canvas id="surgeCanvas"></canvas>
+    <div id="surgeNotes" class="reasons"></div>
   </div>
 
-  <div class="section"><h2>Insights & Trends</h2></div>
-  <div class="grid">
-    <!-- LH Surge Day -->
-    <div class="panel">
-      <h3>LH surge day (CD)</h3>
-      <div class="caption" id="surgeStats">—</div>
-      <canvas id="surgeCanvas"></canvas>
-      <div id="surgeNotes" class="reasons"></div>
-    </div>
-
-    <!-- BBT Rise per cycle -->
-    <div class="panel">
-      <h3>BBT rise per cycle</h3>
-      <div class="caption" id="riseStats">—</div>
-      <div id="riseList" class="reasons"></div>
-    </div>
-
-    <!-- LPD risk -->
-    <div class="panel">
-      <h3>LPD risk (low progesterone)</h3>
-      <div class="caption">Flag if <span class="mono">luteal &lt; 9d</span> OR <span class="mono">rise &lt; 0.30 °C</span></div>
-      <div class="kpi"><div id="lpdBig" class="big">—</div><div id="lpdSmall" class="small"></div></div>
-      <div id="lpdReasons" class="reasons"></div>
-      <table class="matrix" id="lpdMatrix"></table>
-    </div>
-
-    <!-- Anovulation -->
-    <div class="panel">
-      <h3>Anovulation suspect</h3>
-      <div class="caption">Flag if no surge ≥0.75/“Surge” AND no sustained shift (≥3 temps &gt; coverline+0.10 on DPO3–6)</div>
-      <div class="kpi"><div id="anovBig" class="big">—</div><div id="anovSmall" class="small"></div></div>
-      <div id="anovReasons" class="reasons"></div>
-      <table class="matrix" id="anovMatrix"></table>
-    </div>
-
-    <!-- Sex timing -->
-    <div class="panel">
-      <h3>Sex timing — target coverage</h3>
-      <div class="caption" id="sexStats">Target days −2, −1, 0 (3/3 = 100%)</div>
-      <div id="sexBreak" class="line"></div>
-      <div id="sexPills" class="reasons"></div>
-    </div>
+  <div class="panel">
+    <h3>BBT rise per cycle</h3>
+    <div class="caption">Post-ovulation daily temps vs coverline through full luteal: <b style="color:var(--green)">Green</b> ≥ +0.20 °C, <b style="color:var(--red)">Red</b> = +0.10…+0.19 °C, <b>Black</b> ≤ +0.09 °C.</div>
+    <div class="caption" id="riseStats">—</div>
+    <div id="riseList" class="reasons"></div>
   </div>
 
-  <!-- Filters sheet -->
-  <div class="sheet" id="sheet">
-    <div class="grab"></div>
-    <div class="content">
-      <div class="row"><label>Include anovulatory cycles (length stats)</label><input type="checkbox" id="incAnov" checked></div>
-      <div class="row"><label>Only cycles with BBT data</label><input type="checkbox" id="bbtOnly"></div>
-      <div class="row"><label>Range: last N cycles</label><input type="number" id="lastN" min="1" max="36" value="12" style="width:70px"></div>
-      <div class="row"><button id="applyFilters">Apply</button></div>
+  <div class="panel">
+    <h3>LPD risk (low progesterone)</h3>
+    <table class="matrix" id="lpdMatrix"></table>
+  </div>
+
+  <div class="panel">
+    <h3>Anovulation suspect</h3>
+    <table class="matrix" id="anovMatrix"></table>
+  </div>
+
+  <div class="panel">
+    <h3>Sex timing — ideal vs met</h3>
+    <div class="caption" id="sexStats">Ideal −2, −1, 0 (+1 optional). Filled = met.</div>
+    <div id="sexBreak" class="line"></div>
+    <div id="sexPills" class="reasons"></div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <div class="grab"></div>
+  <div class="content">
+    <div class="row"><label>Include anovulatory cycles (length stats)</label><input type="checkbox" id="incAnov" checked></div>
+    <div class="row"><label>Only cycles with BBT data</label><input type="checkbox" id="bbtOnly"></div>
+    <div class="row"><label>Range: last N cycles</label><input type="number" id="lastN" min="1" max="36" value="12" style="width:70px"></div>
+    <div class="actions">
+      <button id="closeFilters" class="ghost">Close</button>
+      <button id="applyFilters">Done</button>
     </div>
   </div>
+</div>
 
 <script>
-// ===== Date utils =====
+console.log('[history] build 2025-08-14 v9: numeric-only anchor for sex timing; month-span labels');
+
+/* ---------- Date helpers ---------- */
 function toUTCmid(d){ return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); }
 function addDays(d,n){ const x=new Date(d.getTime()); x.setDate(x.getDate()+n); return x; }
 function dayDiff(a,b){ if(!(a instanceof Date)||!(b instanceof Date)) return 0; const A=toUTCmid(a), B=toUTCmid(b); return Math.max(0, Math.floor((B-A)/86400000)); }
 function iso(d){ return (d instanceof Date && !isNaN(d.getTime())) ? d.toISOString().slice(0,10) : '—'; }
+function monthShort(d){ return d.toLocaleString('en-US',{month:'short'}); }
+function cycleMonthSpan(c){
+  const start=c.startDate, end=addDays(c.nextStart,-1);
+  const ms=monthShort(start), me=monthShort(end);
+  const ys=start.getFullYear(), ye=end.getFullYear();
+  // If years differ, include years (e.g., Dec 2024–Jan 2025). Otherwise just months.
+  return ys===ye ? `${ms}–${me}` : `${ms} ${ys}–${me} ${ye}`;
+}
 
-// ===== parse dates =====
+/* ---------- Parse entry DATE ---------- */
+function stripAtTail(s){ const i=s.indexOf(' at '); return i>=0? s.slice(0,i) : s; }
 function parseAnyDate(v){
   if(v==null) return null;
   if(v instanceof Date) return isNaN(v.getTime())? null : v;
   if(typeof v==='number'){ const d=new Date(v); return isNaN(d.getTime())? null : d; }
-  if(typeof v==='object'){
-    if(typeof v.toDate==='function'){ try{ const d=v.toDate(); return (d instanceof Date && !isNaN(d.getTime()))? d : null; }catch(_){} }
-    if(typeof v.seconds==='number'){ const d=new Date(v.seconds*1000); return isNaN(d.getTime())? null : d; }
-  }
-  let s=String(v).trim();
-  s=s.replace(/\bat\b/gi,' ').replace(/\s+/g,' ').trim();
-  s=s.replace(/UTC\s*([+-]\d{1,2})\b/i,(_m,off)=>'GMT'+off+':00');
-  const MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-  let m=/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?(?:\s+GMT([+-]\d{1,2})(?::?(\d{2}))?)?$/i.exec(s);
-  if(m){
-    const dd=+m[1], mon=(m[2]||'').slice(0,3).toLowerCase(), y=+m[3];
-    const hh=m[4]?+m[4]:0, mi=m[5]?+m[5]:0, ss=m[6]?+m[6]:0, mo=MONTHS[mon];
-    if(mo!=null){
-      let d=new Date(Date.UTC(y,mo,dd,hh,mi,ss));
-      if(m[7]){ const offH=+m[7], offM=m[8]?+m[8]:0; const mins=offH*60 + (offH<0?-offM:offM); d=new Date(d.getTime()-mins*60000); }
-      return isNaN(d.getTime())? null : d;
-    }
-  }
-  m=/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/.exec(s);
-  if(m){ const y=+m[1], mo=+m[2], d=+m[3]; const D=new Date(y,mo-1,d); return (D.getFullYear()===y && D.getMonth()===mo-1 && D.getDate()===d)? D : null; }
-  m=/^(\d{1,2})[-\/]((?:0?[1-9]|1[0-2]))[-\/]?(\d{4})$/.exec(s);
-  if(m){ const d=+m[1], mo=+m[2], y=+m[3]; const D=new Date(y,mo-1,d); return (D.getFullYear()===y && D.getMonth()===mo-1 && D.getDate()===d)? D : null; }
-  const D=new Date(s);
-  return isNaN(D.getTime())? null : D;
+  let s=String(v).trim(); s=stripAtTail(s);
+  let m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s); if(m){ const D=new Date(+m[1],+m[2]-1,+m[3]); return isNaN(D)?null:D; }
+  m=/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/.exec(s);
+  if(m){ const MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11}; const D=new Date(+m[3],MONTHS[m[2].slice(0,3).toLowerCase()],+m[1]); return isNaN(D)?null:D; }
+  const D=new Date(s); return isNaN(D)? null : D;
 }
 function getEntryDate(e){
-  const candidates=[e.timestamp,e.timeStamp,e.ts,e.recordedAt,e.date,e.Date,e.createdAt,e.created,e.created_on,e.id];
-  for(const v of candidates){ const d=parseAnyDate(v); if(d) return d; }
+  const fields=[e.entryDate, e['entry-date'], e.entry_date, e.date, e.Date];
+  for(const v of fields){ const d=parseAnyDate(v); if(d) return d; }
+  if (typeof e.id === 'string') {
+    const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(e.id);
+    if (m) { const D=new Date(+m[1],+m[2]-1,+m[3]); if(!isNaN(D)) return D; }
+  }
   return null;
 }
 
-// ===== BBT parse + trim =====
+/* ---------- BBT parsing ---------- */
 function parseBBT(v){
   if(v==null) return null;
-  if(typeof v==='number'){ let n=v; if(n>80) n=(n-32)*5/9; if(n<35.0 || n>38.5) return null; return n; }
-  let s=String(v).trim().replace(/[^\d.,\-]/g,'');
-  if(s.includes(',') && !s.includes('.')) s=s.replace(',','.');
-  let n=parseFloat(s);
-  if(!isFinite(n)) return null;
-  if(n>80) n=(n-32)*5/9;
-  if(n<35.0 || n>38.5) return null;
-  return n;
-}
-function trimOutliers(values){
-  if(values.length<5) return values.slice();
-  const arr=values.slice().sort((a,b)=>a-b);
-  const median=arr[Math.floor(arr.length/2)];
-  return values.filter(v=>Math.abs(v-median)<=0.8);
+  if(typeof v==='number'){ let n=v; if(n>80) n=(n-32)*5/9; if(n<35||n>38.5) return null; return n; }
+  let s=String(v).trim().replace(/[^\d.,\-]/g,''); if(s.includes(',')&&!s.includes('.')) s=s.replace(',','.');
+  let n=parseFloat(s); if(!isFinite(n)) return null; if(n>80) n=(n-32)*5/9; if(n<35||n>38.5) return null; return n;
 }
 
-// ===== OPK helpers =====
+/* ---------- OPK helpers ---------- */
 function opkAsNumber(v){
-  if(v==null) return null;
-  if(typeof v==='number') return v;
-  const s=String(v).trim().toLowerCase();
-  if(s.includes('surge') || s.includes('solid')) return 1.0;
-  if(s.includes('flashing')) return 0.5;
-  const n=parseFloat(s);
-  return isFinite(n)? n : null;
+  if (v == null) return null;
+  if (typeof v === 'number') return v;
+  let s = String(v).trim().toLowerCase();
+  s = s.replace(/[%]/g,'').replace(',', '.');
+  if (/\b(surge|solid|peak|static)\b/.test(s)) return 1.0;        // label -> treat as 1.0 for day styling only
+  if (/\b(flash|flashing|high|smiley)\b/.test(s)) return 0.5;     // label -> mid
+  const n = parseFloat(s); return isFinite(n)? n : null;
 }
+function isLabeledSurge(v){ if(v==null) return false; return /\b(surge|solid|peak|static)\b/i.test(String(v)); }
+function isLabeledFertile(v){ if(v==null) return false; return /\b(flash|flashing|high|smiley)\b/i.test(String(v)); }
 function opkClass(v){
-  if(v==null) return 'none';
-  const s=(typeof v==='string')? v.toLowerCase() : '';
-  const n=opkAsNumber(v);
-  if(s.includes('surge') || s.includes('solid') || (n!=null && n>=0.75)) return 'surge';
-  if(s.includes('flashing') || (n!=null && n>=0.30 && n<=0.74)) return 'fertile';
+  if (v == null) return 'none';
+  const n = opkAsNumber(v);
+  if (isLabeledSurge(v) || (n!=null && n>=0.75)) return 'surge';
+  if (isLabeledFertile(v) || (n!=null && n>=0.30 && n<=0.74)) return 'fertile';
   return 'none';
 }
-
-// ===== Day1 detection =====
-function isDay1(e){
-  const ph=(e.phase||'').toLowerCase();
-  return ph.includes('day1-period') || ph.includes('day1') || ph.includes('day 1') || ph.includes('day-1') || ph.includes('period start') || e.day1===true;
+function cmScore(cm){
+  if(!cm) return 0; const s=String(cm).toLowerCase();
+  if(s.includes('egg')) return 4; if(s.includes('watery')) return 3; if(s.includes('creamy')) return 2; if(s.includes('sticky')) return 1;
+  return 0;
 }
 
-// ===== Firestore load & merge =====
+/* ---------- Day1 detector ---------- */
+function isDay1(e){
+  const ph=(e.phase||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  return ph==='day1period' || ph==='periodstart' || e.day1===true;
+}
+
+/* ---------- Firestore load, per-field merge, per-day compress ---------- */
 let ENTRIES=[];
 const FILTERS={ incAnov:true, bbtOnly:false, lastN:12 };
 
-firebase.auth().onAuthStateChanged(function(u){
+firebase.auth().onAuthStateChanged(async function(u){
   if(!u){ window.location.href='index.html'; return; }
 
   function normalizeDoc(d){
     const o=d.data(); o.id=d.id; o._src=d.ref.path;
-    const dd=getEntryDate(o); o._date=dd; o._key=dd? iso(dd) : null;
-    o._bbt=parseBBT(o.bbt);
+    o._date = getEntryDate(o);
+    o._key  = o._date? iso(o._date) : null;
+    o._bbt  = parseBBT(o.bbt);
+    o._raw = {
+      entryDate: o.entryDate ?? o['entry-date'] ?? o.entry_date ?? o.date ?? o.Date ?? null,
+      timestamp: o.timestamp ?? o.Timestamp ?? null,
+      opk: o.opk ?? null
+    };
     return o;
   }
 
-  const top=db.collection('entries').get().then(s=>s.docs.map(normalizeDoc)).catch(()=>[]);
-  const user=db.collection('users').doc(u.uid).collection('entries').get().then(s=>s.docs.map(normalizeDoc)).catch(()=>[]);
+  const db = firebase.firestore();
 
-  Promise.all([top,user]).then(([A,B])=>{
-    const merged={};
-    for(const e of [...A,...B]){
-      if(!e._date) continue;
-      const k=e._key;
-      if(!merged[k]){ merged[k]=e; continue; }
-      const cur=merged[k];
-      const curIsD1=isDay1(cur), eIsD1=isDay1(e);
-      if(eIsD1 && !curIsD1){ merged[k]=e; continue; }
-      if(!eIsD1 && curIsD1){ continue; }
-      const curIsUser=String(cur._src||'').includes('/users/');
-      const eIsUser=String(e._src||'').includes('/users/');
-      if(!curIsUser && eIsUser){ merged[k]=e; continue; }
+  const guesses = [];
+  if (u && u.uid) guesses.push(u.uid);
+  if (u && u.displayName) guesses.push(u.displayName);
+  if (u && u.email) {
+    const local = String(u.email).split('@')[0];
+    if (local && !guesses.includes(local)) guesses.push(local);
+  }
+
+  const queries = [];
+  queries.push(db.collection('entries').get().then(s=>s.docs.map(normalizeDoc)).catch(()=>[])); // top-level
+  for (const key of guesses) {
+    queries.push(
+      db.collection('users').doc(key).collection('entries').get()
+        .then(s=>s.docs.map(normalizeDoc))
+        .catch(()=>[])
+    );
+  }
+
+  try{
+    const results = await Promise.all(queries);
+    const all = results.flat();
+
+    const buckets = {};
+    for (const e of all) {
+      if (!e._key) continue;
+      (buckets[e._key] ||= []).push(e);
     }
-    ENTRIES=Object.keys(merged).sort().map(k=>merged[k]);
-    renderAll();
-  }).catch(err=>{
-    document.getElementById('cards').innerHTML='<div class="card"><h3>Error</h3><div class="value">No data</div><div class="sub">'+(err&&err.message?err.message:'Query failed')+'</div></div>';
-  });
-});
 
-// ===== Cycles + assessments =====
+    const daily=[];
+    const keys=Object.keys(buckets).sort();
+    for(const k of keys){
+      const arr=buckets[k];
+
+      const userFirst = arr.find(x=>String(x._src||'').includes('/users/')) || arr[0];
+      const base = { id:userFirst.id, _src:userFirst._src, _date:userFirst._date, _key:k };
+
+      // BBT: prefer user-scoped non-null else any non-null
+      let bbt=null;
+      for(const e of arr){ if(String(e._src||'').includes('/users/') && e._bbt!=null) { bbt=e._bbt; break; } }
+      if(bbt==null){ for(const e of arr){ if(e._bbt!=null){ bbt=e._bbt; break; } } }
+      base._bbt = bbt; base.bbt = bbt;
+
+      // OPK precedence (per day)
+      let hasLabelSurge=false, hasLabelFertile=false, maxNum=null;
+      for(const e of arr){
+        if(isLabeledSurge(e.opk)) hasLabelSurge=true;
+        if(isLabeledFertile(e.opk)) hasLabelFertile=true;
+        const n=opkAsNumber(e.opk);
+        if(n!=null) maxNum = (maxNum==null? n : Math.max(maxNum, n));
+      }
+      if (hasLabelSurge || (maxNum!=null && maxNum>=0.75)) base.opk = 'Surge';
+      else if (hasLabelFertile || (maxNum!=null && maxNum>=0.30 && maxNum<=0.74)) base.opk = 'Flashing';
+      else base.opk = '';
+      base._opkNum = (maxNum!=null? maxNum : (hasLabelSurge? 1.0 : null));
+
+      base.sex = arr.some(e=>String(e.sex||'').toLowerCase()==='yes') ? 'yes' : '';
+
+      let bestCM=null, bestScore=-1;
+      for(const e of arr){ const sc=cmScore(e.cm); if(sc>bestScore){ bestScore=sc; bestCM=e.cm; } }
+      base.cm = bestCM;
+
+      base.day1 = arr.some(e=>isDay1(e));
+      base.phase = base.day1 ? 'day1-period' : (arr.find(e=>e.phase)?.phase || '');
+
+      const hasSymptoms = arr.some(e=>{
+        if (e.symptoms && String(e.symptoms).trim()!=='') return true;
+        if (Array.isArray(e.symptomList) && e.symptomList.length>0) return true;
+        return false;
+      });
+      base._hasSymptoms = hasSymptoms;
+
+      daily.push(base);
+    }
+
+    ENTRIES=daily;
+    renderAll();
+  }catch(err){
+    document.getElementById('cards').innerHTML='<div class="card"><h3>Error</h3><div class="value">—</div><div class="sub">'+(err&&err.message?err.message:'Query failed')+'</div></div>';
+  }
+});
+/* ---------- end Firestore load ---------- */
+
+/* --- BBT-only shift + coverline detector (sympto-thermal 3-of-4 rule) --- */
+function detectBbtShiftAndCoverline(segSorted, offsetC = 0.05) {
+  const days = segSorted
+    .filter(e => e._bbt != null)
+    .map(e => ({ d: toUTCmid(e._date), t: e._bbt }))
+    .sort((a,b)=> a.d - b.d);
+
+  if (days.length < 10) return null; // need pre6 + next4
+
+  const T = days.map(x => x.t);
+
+  for (let i = 6; i + 3 < T.length; i++) {
+    const pre6      = T.slice(i-6, i);
+    const pre6max   = Math.max.apply(null, pre6);
+    const coverline = pre6max + offsetC;
+
+    const next4 = [T[i], T[i+1], T[i+2], T[i+3]];
+    const hits  = next4.filter(v => v >= coverline - 1e-6).length;
+
+    if (hits >= 3) {
+      const shiftIndex = i;
+      const shiftDate  = days[shiftIndex].d;
+      const ovDate     = addDays(shiftDate, -1); // BBT-ovulation = day before shift
+
+      const postODeltas = days
+        .map(x => ({ dpo: dayDiff(ovDate, x.d), temp: x.t }))
+        .filter(x => x.dpo >= 1)
+        .map(x => ({ ...x, delta: x.temp - coverline }));
+
+      return {
+        shiftIndex, shiftDate, ovDate, coverline,
+        pre6max, pre6Window: days.slice(i-6, i).map(x => ({ date: iso(x.d), t: x.t })),
+        postODeltas,
+        method: `BBT shift: max of previous 6 + ${offsetC.toFixed(2)}°C`
+      };
+    }
+  }
+  return null;
+}
+
+/* ---------- Cycle building & metrics ---------- */
+function buildCycle(seg, startDate, nextStart) {
+  const segSorted = seg.slice().sort((a,b) => a._date - b._date);
+
+  // Map OPK per day
+  const S = segSorted.map(e => {
+    const nRaw  = (e._opkNum != null ? e._opkNum : opkAsNumber(e.opk));
+    const label = isLabeledSurge(e.opk);
+    const cls   = (label || (nRaw != null && nRaw >= 0.75)) ? 'surge'
+                 : (isLabeledFertile(e.opk) || (nRaw != null && nRaw >= 0.30 && nRaw <= 0.74)) ? 'fertile'
+                 : 'none';
+    const nEff  = (nRaw != null ? nRaw : (label ? 1.0 : null));
+    return { e, d: toUTCmid(e._date), nRaw, nEff, label, cls };
+  });
+
+  // Numeric-only surge evidence
+  let lhNumSurgePresent = false;
+  let surgeNumDate = null;
+  for (const x of S) {
+    if (typeof x.nRaw === 'number' && x.nRaw >= 0.75) {
+      lhNumSurgePresent = true;
+      if (!surgeNumDate) surgeNumDate = x.d;
+    }
+  }
+
+  // Runs for overall surge (labels allowed) for timeline visuals
+  let surgeDate = null;
+  let runs = [], cur = null;
+  S.forEach((x,i) => {
+    if (x.cls === 'surge') {
+      if (!cur) cur = { start:i, end:i, peakI:i, peakV:(x.nEff ?? -Infinity) };
+      else { cur.end = i; if ((x.nEff ?? -Infinity) > cur.peakV) { cur.peakV = x.nEff; cur.peakI = i; } }
+    } else { if (cur) { runs.push(cur); cur = null; } }
+  });
+  if (cur) runs.push(cur);
+  if (runs.length) {
+    let best = runs[0];
+    for (const r of runs) {
+      if (r.peakV > best.peakV) best = r;
+      else if (r.peakV === best.peakV && S[r.peakI].d < S[best.peakI].d) best = r;
+    }
+    surgeDate = S[best.peakI].d;
+  }
+
+  // Anchor ovulation to NUMERIC surge when available
+  const surgeAnchor = surgeNumDate || surgeDate;   // fallback keeps label-only cycles usable
+  // If you want STRICT numeric only, replace the line above with:
+  // const surgeAnchor = surgeNumDate || null;
+
+  const ovulationDate = surgeAnchor ? addDays(surgeAnchor, 1) : null;
+  const surgeCD = surgeAnchor ? (dayDiff(startDate, surgeAnchor) + 1) : null;
+
+  // Fertile window from OPK “fertile”
+  const periodEnd = addDays(startDate, 4);
+  let fertileStart = null, fertileEnd = null;
+  if (ovulationDate){
+    const lastPreO = addDays(ovulationDate,-1);
+    for (const e of segSorted){
+      const d = toUTCmid(e._date);
+      if (d <= periodEnd) continue;
+      if (d > lastPreO) break;
+      if (opkClass(e.opk)==='fertile' || (e._opkNum!=null && e._opkNum>=0.30 && e._opkNum<=0.74)){
+        if(!fertileStart) fertileStart = d;
+        fertileEnd = d;
+      }
+    }
+    if (!fertileStart) fertileStart = addDays(ovulationDate,-5);
+    if (!fertileEnd)   fertileEnd   = lastPreO;
+    if (fertileStart && fertileStart <= periodEnd) fertileStart = addDays(periodEnd,1);
+  }
+
+  // Luteal length
+  const lutealLen = (ovulationDate ? dayDiff(ovulationDate, nextStart) : null);
+
+  // BBT coverline & deltas
+  let coverline = null, postOMean = null, risePreToDPO = null;
+  let _postODeltas = [];
+  let _clMeta = null;
+
+  const bbtShift = detectBbtShiftAndCoverline(segSorted, 0.05);
+  if (bbtShift) {
+    coverline    = bbtShift.coverline;
+    _postODeltas = bbtShift.postODeltas;
+    _clMeta = {
+      method: bbtShift.method,
+      windowTemps: bbtShift.pre6Window,
+      baseMax: bbtShift.pre6max,
+      coverline
+    };
+
+    const dpo3_6 = _postODeltas.filter(x => x.dpo >= 3 && x.dpo <= 6).map(x => x.temp);
+    if (dpo3_6.length >= 3) {
+      const avg = a => a.reduce((s,v) => s + v, 0) / a.length;
+      postOMean = avg(dpo3_6);
+      risePreToDPO = postOMean - coverline;
+    }
+  }
+
+  // Progesterone metrics (0.20°C rule)
+  let pScore = null, pScoreDen = null, hasMultiDayDrop = null, sustainedShiftProg = null;
+  if (_postODeltas.length) {
+    const del = _postODeltas.filter(x => x.dpo >= 1 && x.dpo <= 10).sort((a,b) => a.dpo - b.dpo);
+    pScoreDen = del.length;
+    pScore    = del.filter(x => x.delta >= 0.20 - 1e-6).length;
+
+    hasMultiDayDrop = del.some((x,i) => i>0 && del[i-1].delta < 0.20 - 1e-6 && x.delta < 0.20 - 1e-6);
+
+    sustainedShiftProg = del.some((_,i) => {
+      const slab = del.slice(i, i+4);
+      return slab.length===4 && slab.filter(y => y.delta >= 0.20 - 1e-6).length >= 3;
+    });
+  }
+
+  // Risks
+  const lpdFromBBT = (pScoreDen!=null && pScoreDen>=6) ? ((pScore<6) || !!hasMultiDayDrop) : null;
+  const lpdRisk = (lutealLen!=null && lutealLen<9) || (lpdFromBBT===true);
+
+  const anovSuspect = !(lhNumSurgePresent && sustainedShiftProg===true);
+
+  // Sex timing (uses ovulationDate derived from NUMERIC anchor when present)
+  const sexCoverageCount = (()=>{ 
+    if (!ovulationDate) return 0;
+    const map = new Map(segSorted.map(e=>[toUTCmid(e._date).getTime(), e]));
+    const hit = d => { const ent=map.get(toUTCmid(d).getTime()); return !!(ent && String(ent.sex||'').toLowerCase()==='yes'); };
+    const arr=[ hit(addDays(ovulationDate,-2)), hit(addDays(ovulationDate,-1)), hit(ovulationDate) ];
+    return arr.filter(Boolean).length;
+  })();
+
+  const sexDays = (()=>{ 
+    if (!ovulationDate) return [false,false,false];
+    const map=new Map(segSorted.map(e=>[toUTCmid(e._date).getTime(), e]));
+    const hit=d=>{ const ent=map.get(toUTCmid(d).getTime()); return !!(ent && String(ent.sex||'').toLowerCase()==='yes'); };
+    return [hit(addDays(ovulationDate,-2)), hit(addDays(ovulationDate,-1)), hit(ovulationDate)];
+  })();
+
+  const sexDays4 = (()=>{ 
+    if (!ovulationDate) return [false,false,false,false];
+    const map=new Map(segSorted.map(e=>[toUTCmid(e._date).getTime(), e]));
+    const hit=d=>{ const ent=map.get(toUTCmid(d).getTime()); return !!(ent && String(ent.sex||'').toLowerCase()==='yes'); };
+    return [hit(addDays(ovulationDate,-2)), hit(addDays(ovulationDate,-1)), hit(ovulationDate), hit(addDays(ovulationDate,1))];
+  })();
+
+  return {
+    entries: seg,
+    startDate, nextStart,
+    length: dayDiff(startDate, nextStart),
+    surgeDate, surgeCD,
+    ovulationDate, lutealLen,
+    fertileStart, fertileEnd,
+    coverline, postOMean, risePreToDPO,
+    clMeta: _clMeta,
+    postODeltas: _postODeltas,
+    pScore, pScoreDen, hasMultiDayDrop, sustainedShiftProg,
+    lhNumSurgePresent, surgeNumDate,
+    lpdRisk, anovSuspect,
+    sexCoverageCount, sexDays, sexDays4
+  };
+}
+
 function segmentCycles(entries){
   const byDate=entries.filter(e=>e._date instanceof Date && !isNaN(e._date)).sort((a,b)=>a._date - b._date);
   const idxDay1=[]; for(let i=0;i<byDate.length;i++) if(isDay1(byDate[i])) idxDay1.push(i);
 
   const cycles=[];
+
+  if (idxDay1.length && idxDay1[0] > 0) {
+    const startIdx = 0, nextIdx = idxDay1[0];
+    const seg = byDate.slice(startIdx, nextIdx);
+    const startDate = toUTCmid(byDate[startIdx]._date);
+    const nextStart = toUTCmid(byDate[nextIdx]._date);
+    if (dayDiff(startDate, nextStart) >= 2) cycles.push(buildCycle(seg, startDate, nextStart));
+  }
+
   for(let c=0;c<idxDay1.length-1;c++){
     const startIdx=idxDay1[c], nextIdx=idxDay1[c+1];
     const seg=byDate.slice(startIdx, nextIdx);
     const startDate=toUTCmid(byDate[startIdx]._date);
     const nextStart=toUTCmid(byDate[nextIdx]._date);
-    const length=dayDiff(startDate,nextStart);
-    if(length<2) continue;
-
-    const periodEnd=addDays(startDate,4);
-
-    // Surge & ovulation
-    let surgeDate=null, maxNum=-Infinity, maxDate=null;
-    for(const e of seg){
-      const d=toUTCmid(e._date);
-      const cls=opkClass(e.opk);
-      if(cls==='surge'){ surgeDate=d; break; }
-      const n=opkAsNumber(e.opk); if(n!=null && n>maxNum){ maxNum=n; maxDate=d; }
-    }
-    if(!surgeDate && maxDate && maxNum>=0.75) surgeDate=maxDate;
-    const ovulationDate = surgeDate ? addDays(surgeDate,1) : null;
-
-    // Luteal length
-    const lutealLen = (ovulationDate ? dayDiff(ovulationDate, nextStart) : null);
-
-    // BBT stats
-    let coverline=null, postOMean=null, risePreToDPO=null, sustainedShift=false, dpoAbove=0;
-    if(ovulationDate){
-      const preOAll=seg.filter(e=>e._bbt!=null && toUTCmid(e._date) < ovulationDate).slice(-12);
-      const preVals=trimOutliers(preOAll.map(e=>e._bbt));
-      if(preVals.length>=6){
-        const last6=preVals.slice(-6);
-        coverline=Math.max(...last6)+0.05;
-
-        const dpoTemps=[];
-        for(const e of seg){
-          const d=toUTCmid(e._date); const dpo=dayDiff(ovulationDate,d);
-          if(dpo>=3 && dpo<=10 && e._bbt!=null){
-            dpoTemps.push(e._bbt);
-            if(dpo<=6 && e._bbt > coverline + 0.10) dpoAbove++;
-          }
-        }
-        const dpoVals=trimOutliers(dpoTemps);
-        if(dpoVals.length>=5) postOMean=dpoVals.reduce((a,b)=>a+b,0)/dpoVals.length;
-
-        const dpo3_6=[];
-        for(const e of seg){
-          const d=toUTCmid(e._date); const dpo=dayDiff(ovulationDate,d);
-          if(dpo>=3 && dpo<=6 && e._bbt!=null) dpo3_6.push(e._bbt);
-        }
-        const preLast3=preVals.slice(-3);
-        if(dpo3_6.length>=3 && preLast3.length===3){
-          const mean=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
-          risePreToDPO=mean(dpo3_6)-mean(preLast3);
-        }
-        sustainedShift = (dpoAbove >= 3);
-      }
-    }
-    if(postOMean!=null && coverline!=null && postOMean < coverline - 0.10) postOMean=null;
-    if(risePreToDPO!=null && (risePreToDPO < -0.2 || risePreToDPO > 1.2)) risePreToDPO=null;
-
-    // Sex timing −2..0
-    let sexCoverageCount=0; let sexDays=[false,false,false];
-    if(ovulationDate){
-      for(let i=-2;i<=0;i++){
-        const d=addDays(ovulationDate,i);
-        const ent=seg.find(e=>iso(toUTCmid(e._date))===iso(d));
-        if(ent && String(ent.sex||'').toLowerCase()==='yes'){ sexCoverageCount++; sexDays[i+2]=true; }
-      }
-    }
-
-    // Flags
-    const lpdRisk = (lutealLen!=null && lutealLen<9) || (risePreToDPO!=null && risePreToDPO<0.30);
-    const anovSuspect = (!ovulationDate) ||
-      ((!sustainedShift) && (!surgeDate || (opkAsNumber(seg.find(e=>iso(toUTCmid(e._date))===iso(surgeDate))?.opk)??0) < 0.75));
-
-    cycles.push({
-      entries:seg, startDate, nextStart, length,
-      surgeDate, ovulationDate, lutealLen, coverline, postOMean, risePreToDPO, sustainedShift,
-      sexCoverageCount, sexDays,
-      lpdRisk, anovSuspect
-    });
+    if(dayDiff(startDate,nextStart) >= 2) cycles.push(buildCycle(seg, startDate, nextStart));
   }
   return cycles;
 }
 
-// ===== Metrics =====
+/* ---------- Metrics & UI ---------- */
 function computeMetrics(cycles){
-  const completed=cycles.slice();
   const mean=a=>a.length? a.reduce((x,y)=>x+y,0)/a.length : null;
   const sd=a=>{ if(a.length<2) return null; const mu=mean(a); return Math.sqrt(mean(a.map(x=>(x-mu)*(x-mu)))); };
 
-  const lengths=completed.map(c=>c.length);
-  const rises=completed.map(c=>c.risePreToDPO).filter(v=>v!=null);
+  const lengths=cycles.map(c=>c.length);
+  const luteals=cycles.map(c=>c.lutealLen).filter(v=>v!=null);
+  const ovDays=cycles.filter(c=>c.ovulationDate).map(c=>dayDiff(c.startDate,c.ovulationDate)+1);
+  const fertOffsets = cycles.filter(c=>c.fertileStart).map(c=>dayDiff(addDays(c.startDate,4), c.fertileStart));
+  const fertLengths = cycles.filter(c=>c.fertileStart && c.fertileEnd).map(c=>dayDiff(c.fertileStart, c.fertileEnd)+1);
 
-  // Paired coverline/post-O
-  const paired=completed.filter(c=>c.coverline!=null && c.postOMean!=null);
+  const paired=cycles.filter(c=>c.coverline!=null && c.postOMean!=null);
   const cover=paired.map(c=>c.coverline);
   const postO=paired.map(c=>c.postOMean);
 
-  // Surge day stats (CD of surge = O-1)
-  const surgeCDs = completed.filter(c=>c.surgeDate && c.startDate).map(c=>dayDiff(c.startDate, c.surgeDate)+1);
-
-  function quantiles(arr){
-    if(!arr.length) return null;
-    const a=arr.slice().sort((x,y)=>x-y);
-    const q = p => {
-      const idx=(a.length-1)*p;
-      const lo=Math.floor(idx), hi=Math.ceil(idx);
-      if(lo===hi) return a[lo];
-      return a[lo] + (a[hi]-a[lo])*(idx-lo);
-    };
-    return {median:q(0.5), q1:q(0.25), q3:q(0.75)};
-  }
+  const surgeCDs = cycles.map(c=>c.surgeCD).filter(v=>v!=null);
+  function quantiles(arr){ if(!arr.length) return null; const a=arr.slice().sort((x,y)=>x-y);
+    const q=p=>{ const i=(a.length-1)*p, lo=Math.floor(i), hi=Math.ceil(i); return lo===hi?a[lo]:a[lo]+(a[hi]-a[lo])*(i-lo); };
+    return {median:q(0.5), q1:q(0.25), q3:q(0.75)}; }
 
   return {
-    N:completed.length,
+    N:cycles.length,
     cycleLen:{mean:mean(lengths), sd:sd(lengths), N:lengths.length},
-    bbtRise:{mean:mean(rises), sd:sd(rises), N:rises.length},
+    fertileOffset:{mean:mean(fertOffsets), sd:sd(fertOffsets), N:fertOffsets.length},
+    fertileLen:{mean:mean(fertLengths), sd:sd(fertLengths), N:fertLengths.length},
+    ovulationDay:{mean:mean(ovDays), sd:sd(ovDays), N:ovDays.length},
+    luteal:{mean:mean(luteals), sd:sd(luteals), N:luteals.length},
     coverline:{mean:mean(cover), sd:sd(cover), N:cover.length},
     postO:{mean:mean(postO), sd:sd(postO), N:postO.length},
     surge:{ cds: surgeCDs, q: quantiles(surgeCDs) }
   };
 }
 
-// ===== Cards =====
 function renderCards(m){
   const cards=document.getElementById('cards');
   const f=(x,d)=>x==null?'—':(d===0? Math.round(x) : Number(x).toFixed(d));
-  const item=(title,val,sub)=>`<div class="card"><h3>${title}</h3><div class="value">${val}</div><div class="sub">${sub||''}</div></div>`;
-  const parts=[];
-  parts.push(item('Avg Cycle', `${f(m.cycleLen.mean,1)} d`, `±${f(m.cycleLen.sd,1)} (n=${m.cycleLen.N})`));
-  parts.push(item('Coverline (paired)', `${f(m.coverline.mean,2)} °C`, `n=${m.coverline.N}`));
-  parts.push(item('Post-O (paired)', `${f(m.postO.mean,2)} °C`, `n=${m.postO.N}`));
-  parts.push(item('BBT Rise', `${f(m.bbtRise.mean,2)} °C`, `n=${m.bbtRise.N}`));
-  cards.innerHTML=parts.join('');
+  const it=(t,v,s)=>`<div class="card"><h3>${t}</h3><div class="value">${v}</div><div class="sub">${s||''}</div></div>`;
+  cards.innerHTML=[
+    it('Avg Cycle', `${f(m.cycleLen.mean,1)} d`, `±${f(m.cycleLen.sd,1)} (n=${m.cycleLen.N})`),
+    it('Fertile Start', `${f(m.fertileOffset.mean,1)} d`, `after period (n=${m.fertileOffset.N})`),
+    it('Fertile Length', `${f(m.fertileLen.mean,1)} d`, `±${f(m.fertileLen.sd,1)} (n=${m.fertileLen.N})`),
+    it('Ovulation Day', `CD ${f(m.ovulationDay.mean,1)}`, `±${f(m.ovulationDay.sd,1)} (n=${m.ovulationDay.N})`),
+    it('Luteal Length', `${f(m.luteal.mean,1)} d`, `±${f(m.luteal.sd,1)} (n=${m.luteal.N})`),
+    it('Coverline (avg)', `${f(m.coverline.mean,2)} °C`, `n=${m.coverline.N}`),
+    it('Post-O (avg)', `${f(m.postO.mean,2)} °C`, `n=${m.postO.N}`)
+  ].join('');
 }
 
-// ===== Ribbons (with sex pills) =====
 function renderRibbons(cycles){
   const box=document.getElementById('ribbons'); box.innerHTML='';
   const completed=cycles.slice(-FILTERS.lastN);
-  for(let idx=0; idx<completed.length; idx++){
-    const c=completed[idx];
+  for(const c of completed){
     const unit=100/c.length; const bands=[];
     const p0=0, p1=Math.min(5,c.length); bands.push({left:p0*unit, width:(p1-p0)*unit, color:'var(--red)'});
+    if(c.fertileStart && c.fertileEnd){
+      const fs=dayDiff(c.startDate,c.fertileStart), fe=dayDiff(c.startDate,c.fertileEnd)+1;
+      bands.push({left:fs*unit, width:(fe-fs)*unit, color:'var(--amber)'});
+    }
     if(c.surgeDate){ const s=dayDiff(c.startDate,c.surgeDate); bands.push({left:s*unit, width:Math.max(1.5,unit*0.9), color:'var(--purple)'}); }
     if(c.ovulationDate){ const o=dayDiff(c.startDate,c.ovulationDate); bands.push({left:o*unit, width:Math.max(1.5,unit*0.9), color:'var(--blue)'}); }
     if(c.ovulationDate){ const o2=dayDiff(c.startDate,c.ovulationDate)+1; bands.push({left:o2*unit, width:(c.length-o2)*unit, color:'var(--green)'}); }
     const bandHTML=bands.map(b=>`<div class="band" style="left:${b.left}%;width:${b.width}%;background:${b.color}"></div>`).join('');
-    const label=`${iso(c.startDate)} → ${iso(addDays(c.nextStart,-1))} · ${c.length}d`;
-    const flags = [ c.lpdRisk ? 'LPD risk' : null, c.anovSuspect ? 'Anovulation?' : null ].filter(Boolean).join(' · ');
-    const right = flags || (c.ovulationDate?(`O: CD ${dayDiff(c.startDate,c.ovulationDate)+1}`):'No O detected');
-    const pills = c.ovulationDate
-      ? `<div class="pills" title="Target −2, −1, 0">
-           <div class="pill ${c.sexDays[0]?'on':''}"></div>
-           <div class="pill ${c.sexDays[1]?'on':''}"></div>
-           <div class="pill ${c.sexDays[2]?'on':''}"></div>
-         </div>` : '';
+    const left=`${iso(c.startDate)} → ${iso(addDays(c.nextStart,-1))} · ${c.length}d`;
+    const parts=[];
+    if(c.coverline!=null) parts.push(`CL ${c.coverline.toFixed(2)}°C`);
+    if(c.ovulationDate) parts.push(`O: CD ${dayDiff(c.startDate,c.ovulationDate)+1}`);
+    if(c.lpdRisk) parts.push('LPD risk');
+    if(c.anovSuspect) parts.push('Anov?');
+    const right=parts.join(' · ') || '—';
     const div=document.createElement('div'); div.className='ribbon';
-    div.innerHTML=`<div class="label"><span>${label}</span><span>${right}</span></div><div class="bar">${bandHTML}</div>${pills}`;
+    div.innerHTML=`<div class="label"><span>${left}</span><span>${right}</span></div><div class="bar">${bandHTML}</div>`;
     box.appendChild(div);
   }
 }
 
-// ===== Insights (no bars) =====
 function renderInsights(cycles, m){
   const last = cycles.slice(-FILTERS.lastN);
 
-  // --- LH Surge strip ---
+  // Surge stats + strip
   const surgeStats = document.getElementById('surgeStats');
-  const surgeNotes = document.getElementById('surgeNotes');
-  surgeNotes.innerHTML='';
+  const surgeNotes = document.getElementById('surgeNotes'); surgeNotes.innerHTML='';
   if(m.surge.q){
     const {median,q1,q3}=m.surge.q;
     surgeStats.textContent = `Median CD ${Math.round(median)} • IQR ${Math.round(q1)}–${Math.round(q3)} (n=${m.surge.cds.length})`;
-  } else {
-    surgeStats.textContent = 'No surge entries available';
-  }
+  } else { surgeStats.textContent = 'No surge entries available'; }
   drawSurgeStrip(last);
+  last.forEach((c)=>{ if(c.surgeCD==null){ const d=document.createElement('div'); d.innerHTML=`<span class="chip">${cycleMonthSpan(c)}</span> no numeric surge ≥ 0.75 / label`; surgeNotes.appendChild(d); }});
 
-  // Notes for cycles without surge
-  last.forEach((c,i)=>{
-    if(!c.surgeDate){
-      const span=document.createElement('div');
-      const label=`C${i+1}`;
-      span.innerHTML = `<span class="chip">${label}</span> no surge ≥0.75/“Surge”`;
-      surgeNotes.appendChild(span);
-    }
+  // Post-O BBT dots vs coverline (full luteal)
+  const riseList = document.getElementById('riseList'); 
+  riseList.innerHTML = '';
+
+  let totalDays = 0, totalHits = 0; // hits = days ≥ +0.20
+
+  last.forEach((c)=>{
+    if (c.coverline == null || !Array.isArray(c.postODeltas) || !c.postODeltas.length) return;
+
+    const maxDPO = (typeof c.lutealLen === 'number' && c.lutealLen > 0) 
+      ? c.lutealLen 
+      : Math.max(...c.postODeltas.map(x=>x.dpo));
+
+    const days = c.postODeltas
+      .filter(x => x.dpo >= 1 && x.dpo <= maxDPO)
+      .sort((a,b)=>a.dpo - b.dpo);
+
+    const squares = days.map(x=>{
+      const d = x.delta; 
+      const eps = 1e-6;
+      const cls = (d >= 0.20 - eps) ? 'green' : (d > 0 + eps ? 'red' : 'base');
+      const title = `DPO${x.dpo}: ${(d>=0?'+':'')}${d.toFixed(2)} °C vs CL ${(c.coverline!=null)?c.coverline.toFixed(2):'—'}°C`;
+      return `<span class="bbtDot ${cls}" title="${title}"></span>`;
+    }).join('');
+
+    const hits = days.filter(x=>x.delta >= 0.20 - 1e-6).length;
+    totalDays += days.length; 
+    totalHits += hits;
+
+    const row = document.createElement('div');
+    row.className = 'riseRow';
+    row.innerHTML = `
+      <span class="chip">${cycleMonthSpan(c)}</span>
+      <div class="bbtBar">${squares}</div>
+      <span class="delta ${hits>=6?'good':'warn'}">${hits}/${days.length} ≥ +0.20 °C (DPO1–${maxDPO})</span>
+      <span class="caption" style="margin-left:8px;color:var(--muted)">CL ${c.coverline!=null?c.coverline.toFixed(2):'—'}°C</span>
+    `;
+    riseList.appendChild(row);
   });
 
-  // --- BBT rise list ---
-  const riseStats = document.getElementById('riseStats');
-  const rises = last.map(c=>c.risePreToDPO).filter(v=>v!=null);
-  const pctGood = rises.length? Math.round(100*rises.filter(v=>v>=0.30).length/rises.length) : null;
-  riseStats.textContent = rises.length ? `Avg Δ ${rises.reduce((a,b)=>a+b,0)/rises.length >=0 ? (rises.reduce((a,b)=>a+b,0)/rises.length).toFixed(2):'—'} °C • ${pctGood}% ≥ 0.30 °C (n=${rises.length})` : 'No BBT rise data';
-  const riseList = document.getElementById('riseList'); riseList.innerHTML='';
-  last.forEach((c,i)=>{
-    const id=`C${i+1}`;
-    if(c.coverline!=null && c.postOMean!=null && c.risePreToDPO!=null){
-      const div=document.createElement('div');
-      div.textContent = `${id} — ${c.coverline.toFixed(2)} → ${c.postOMean.toFixed(2)} (Δ +${c.risePreToDPO.toFixed(2)} °C)`;
-      riseList.appendChild(div);
-    }
-  });
+  const pct = totalDays ? Math.round(100 * totalHits / totalDays) : null;
+  document.getElementById('riseStats').textContent = totalDays
+    ? `${pct}% of luteal days ≥ +0.20 °C across shown cycles`
+    : 'No post-O BBT data';
 
-  // --- LPD summary + reasons + matrix ---
-  const lpdBig=document.getElementById('lpdBig');
-  const lpdSmall=document.getElementById('lpdSmall');
-  const lpdReasons=document.getElementById('lpdReasons'); lpdReasons.innerHTML='';
-  const lpdRows=[['Cycle','Luteal<9','Rise<0.30']];
-  let lpdCount=0;
-  last.forEach((c,i)=>{
-    if(c.lpdRisk) lpdCount++;
-    const row=[`C${i+1}`, c.lutealLen!=null && c.lutealLen<9 ? '✓' : '✗', c.risePreToDPO!=null && c.risePreToDPO<0.30 ? '✓' : '✗'];
-    lpdRows.push(row);
-    if(c.lpdRisk){
-      const parts=[];
-      if(c.lutealLen!=null && c.lutealLen<9) parts.push(`luteal ${c.lutealLen}d`);
-      if(c.risePreToDPO!=null && c.risePreToDPO<0.30) parts.push(`rise ${c.risePreToDPO.toFixed(2)}°C`);
-      const div=document.createElement('div');
-      div.innerHTML=`<span class="chip">C${i+1}</span> ${parts.join(' · ')}`;
-      lpdReasons.appendChild(div);
-    }
+  // LPD matrix
+  const lpdRows=[['Cycle','Luteal ≥ 9','DPO1–10 ≥ +0.20','No 2-day drop','No LPD risk']];
+  last.forEach((c)=>{
+    const lutealOK = (c.lutealLen!=null && c.lutealLen>=9) ? '✓' : '✗';
+    const scoreText = (c.pScoreDen!=null) ? `${c.pScore}/${c.pScoreDen}` : '—';
+    const noDrop = (c.hasMultiDayDrop==null) ? '—' : (c.hasMultiDayDrop? '✗' : '✓');
+    const noRisk = (c.lpdRisk==null) ? '—' : (c.lpdRisk? '✗' : '✓');
+    lpdRows.push([cycleMonthSpan(c), lutealOK, scoreText, noDrop, noRisk]);
   });
-  lpdBig.textContent = `${lpdCount}/${last.length}`;
-  lpdSmall.textContent = 'cycles flagged';
   renderMatrix('lpdMatrix', lpdRows);
 
-  // --- Anov summary + reasons + matrix ---
-  const anovBig=document.getElementById('anovBig');
-  const anovSmall=document.getElementById('anovSmall');
-  const anovReasons=document.getElementById('anovReasons'); anovReasons.innerHTML='';
-  const anovRows=[['Cycle','No surge','No sustained shift']];
-  let anovCount=0;
-  last.forEach((c,i)=>{
-    const noSurge = !c.surgeDate;
-    const noShift = !c.sustainedShift;
-    if(c.anovSuspect) anovCount++;
-    anovRows.push([`C${i+1}`, noSurge?'✓':'✗', noShift?'✓':'✗']);
-    if(c.anovSuspect){
-      const parts=[];
-      if(noSurge) parts.push('no surge ≥0.75/“Surge”');
-      if(noShift) parts.push('<3 temps above CL+0.10 (DPO3–6)');
-      if(!c.ovulationDate) parts.push('no ovulation inferred');
-      const div=document.createElement('div');
-      div.innerHTML=`<span class="chip">C${i+1}</span> ${parts.join(' · ')}`;
-      anovReasons.appendChild(div);
-    }
+  // Anovulation matrix (numeric LH only + sustained shift DPO1–10)
+  const anovRows=[['Cycle','Numeric surge ≥ 0.75','Sustained shift (DPO1–10)','O inferred']];
+  last.forEach((c)=>{
+    const numOK = c.lhNumSurgePresent ? '✓' : '✗';
+    const sustOK = (c.sustainedShiftProg==null) ? '—' : (c.sustainedShiftProg? '✓' : '✗');
+    const inferred = (c.lhNumSurgePresent && c.sustainedShiftProg) ? '✓' : '✗';
+    anovRows.push([cycleMonthSpan(c), numOK, sustOK, inferred]);
   });
-  anovBig.textContent = `${anovCount}/${last.length}`;
-  anovSmall.textContent = 'cycles flagged';
   renderMatrix('anovMatrix', anovRows);
 
-  // --- Sex timing summary + pills ---
+  // Sex timing
   const full3 = last.filter(c=>c.sexCoverageCount===3).length;
   const b0 = last.filter(c=>c.sexCoverageCount===0).length;
   const b1 = last.filter(c=>c.sexCoverageCount===1).length;
   const b2 = last.filter(c=>c.sexCoverageCount===2).length;
   const b3 = last.filter(c=>c.sexCoverageCount===3).length;
-  document.getElementById('sexStats').textContent = `Target days −2, −1, 0 (3/3 = 100%)`;
   document.getElementById('sexBreak').textContent = `0/3:${b0} • 1/3:${b1} • 2/3:${b2} • 3/3:${b3} • 100% hits: ${full3}/${last.length}`;
+
   const sexPills=document.getElementById('sexPills'); sexPills.innerHTML='';
-  last.forEach((c,i)=>{
-    const row=document.createElement('div');
-    row.innerHTML = `<span class="chip">C${i+1}</span>
-      <span class="pill ${c.sexDays[0]?'on':''}"></span>
-      <span class="pill ${c.sexDays[1]?'on':''}"></span>
-      <span class="pill ${c.sexDays[2]?'on':''}"></span>`;
+  last.forEach((c)=>{
+    const row=document.createElement('div'); row.className='pillRow';
+    row.innerHTML = `<span class="chip">${cycleMonthSpan(c)}</span>
+      <span class="pillLbl">-2</span><span class="dot ${c.sexDays4[0]?'on':''}"></span>
+      <span class="pillLbl">-1</span><span class="dot ${c.sexDays4[1]?'on':''}"></span>
+      <span class="pillLbl">0</span><span class="dot ${c.sexDays4[2]?'on':''}"></span>
+      <span class="pillLbl">+1</span><span class="dot opt ${c.sexDays4[3]?'on':''}"></span>`;
     sexPills.appendChild(row);
   });
 }
 
-// Draw LH surge strip (dot strip with CD axis)
 function drawSurgeStrip(cycles){
   const canvas=document.getElementById('surgeCanvas');
   const dpr=window.devicePixelRatio||1;
@@ -559,88 +748,89 @@ function drawSurgeStrip(cycles){
   const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   ctx.clearRect(0,0,cssW,cssH);
 
-  // Determine CD range from data (default 8..20)
-  const cds = cycles.map(c=>c.surgeDate && c.startDate ? (dayDiff(c.startDate,c.surgeDate)+1) : null).filter(v=>v!=null);
-  let minCD = cds.length? Math.min.apply(null, cds) : 8;
-  let maxCD = cds.length? Math.max.apply(null, cds) : 20;
+  const cds = cycles.map(c=>c.surgeCD).filter(v=>v!=null);
+  let minCD = cds.length? Math.min(...cds) : 8;
+  let maxCD = cds.length? Math.max(...cds) : 20;
   minCD=Math.max(6, Math.min(minCD, 12));
   maxCD=Math.min(28, Math.max(maxCD, 16));
-  const left=32, right=cssW-12, top=18, y=cssH/2;
+  const left=36, right=cssW-12, center=cssH/2;
 
-  // Axis
   ctx.strokeStyle="#ddd"; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(right,y); ctx.stroke();
-  // ticks
-  const tickEvery = 2;
-  for(let cd=minCD; cd<=maxCD; cd+=tickEvery){
-    const x = left + (cd-minCD)/(maxCD-minCD || 1) * (right-left);
-    ctx.beginPath(); ctx.moveTo(x, y-6); ctx.lineTo(x, y+6); ctx.stroke();
-    ctx.fillStyle="#888"; ctx.font="11px system-ui"; ctx.textAlign="center"; ctx.fillText(String(cd), x, top-4);
+  ctx.beginPath(); ctx.moveTo(left,center); ctx.lineTo(right,center); ctx.stroke();
+
+  ctx.fillStyle="#888"; ctx.font="11px system-ui"; ctx.textAlign="center";
+  for(let cd=minCD; cd<=maxCD; cd+=2){
+    const x = left + (cd-minCD)/(maxCD-minCD||1) * (right-left);
+    ctx.beginPath(); ctx.moveTo(x, center-6); ctx.lineTo(x, center+6); ctx.stroke();
+    ctx.fillText(String(cd), x, 14);
   }
 
-  // Dots: filled = real surge, hollow = no surge (if O inferred)
-  let row=0; const rows=3; // slight vertical jitter to avoid overlap
+  let row=0; const rows=3;
   cycles.forEach(c=>{
-    const cdSurge = (c.surgeDate && c.startDate) ? (dayDiff(c.startDate,c.surgeDate)+1) : null;
-    const cdO = (c.ovulationDate && c.startDate) ? (dayDiff(c.startDate,c.ovulationDate)+1) : null;
-    const cd = cdSurge!=null ? cdSurge : (cdO!=null ? cdO-1 : null);
+    const cd = c.surgeCD;
     if(cd==null) return;
-    const x = left + (cd-minCD)/(maxCD-minCD || 1) * (right-left);
-    const yy = y + ((row%rows)-1)*10; row++;
-    ctx.beginPath(); ctx.arc(x, yy, 4, 0, Math.PI*2);
-    if(cdSurge!=null){ ctx.fillStyle="rgba(209,95,167,0.9)"; ctx.fill(); }
-    else { ctx.strokeStyle="rgba(209,95,167,0.9)"; ctx.lineWidth=2; ctx.stroke(); }
+    const x = left + (cd-minCD)/(maxCD-minCD||1) * (right-left);
+    const y = center + ((row%rows)-1)*10; row++;
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2);
+    ctx.fillStyle="rgba(209,95,167,0.9)"; ctx.fill();
   });
 }
 
-// Matrix builder
 function renderMatrix(id, rows){
   const tbl=document.getElementById(id);
   let html='';
   rows.forEach((r,ri)=>{
     if(ri===0){
       html += '<tr>'+r.map(c=>`<th>${c}</th>`).join('')+'</tr>';
-    } else {
+    }else{
       html += '<tr>'+r.map((c,ci)=>{
-        if(ci===0) return `<td style="text-align:left">${c}</td>`;
-        return `<td class="${c==='✓'?'ok':'no'}">${c}</td>`;
+        if (ci===0) return `<td style="text-align:left">${c}</td>`;
+        if (c==='✓') return `<td class="ok">✓</td>`;
+        if (c==='✗') return `<td class="no">✗</td>`;
+        return `<td>${c}</td>`;
       }).join('')+'</tr>';
     }
   });
   tbl.innerHTML=html;
 }
 
-// ===== Orchestration =====
+/* ---------- Orchestration ---------- */
+let CURRENT_CYCLES=[];
 function renderAll(){
   if(!ENTRIES.length){
-    document.getElementById('cards').innerHTML='<div class="card"><h3>No data</h3><div class="value">—</div><div class="sub">No entries in Firestore</div></div>';
+    document.getElementById('cards').innerHTML='<div class="card"><h3>No data</h3><div class="value">—</div><div class="sub">No entries</div></div>';
     document.getElementById('ribbons').innerHTML='';
     return;
   }
   const cycles=segmentCycles(ENTRIES);
   if(!cycles.length){
-    document.getElementById('cards').innerHTML='<div class="card"><h3>Setup</h3><div class="value">0 cycles</div><div class="sub">No completed cycles detected. Ensure each cycle has a Day 1 and the next Day 1.</div></div>';
+    document.getElementById('cards').innerHTML='<div class="card"><h3>Setup</h3><div class="value">0 cycles</div><div class="sub">Add Day 1 (period start) entries.</div></div>';
     document.getElementById('ribbons').innerHTML='';
     return;
   }
+  CURRENT_CYCLES=cycles;
   const m=computeMetrics(cycles);
   renderCards(m);
   renderRibbons(cycles);
   renderInsights(cycles, m);
+  console.log('[history] surge CDs:', cycles.map(c=>c.surgeCD), 'lengths:', cycles.map(c=>c.length));
 }
 
-// Sheet controls
+document.getElementById('homeBtn').addEventListener('click',()=>{ window.location.href='index.html'; });
 const sheet=document.getElementById('sheet');
-document.getElementById('filterBtn').addEventListener('click',()=>sheet.classList.add('open'));
-sheet.addEventListener('click',e=>{ if(e.target===sheet) sheet.classList.remove('open'); });
+const openFilters=()=>{ sheet.classList.add('open'); sheet.setAttribute('aria-hidden','false'); };
+const closeFilters=()=>{ sheet.classList.remove('open'); sheet.setAttribute('aria-hidden','true'); };
+document.getElementById('filterBtn').addEventListener('click',openFilters);
+document.getElementById('closeFilters').addEventListener('click',closeFilters);
+sheet.addEventListener('click',e=>{ if(e.target===sheet) closeFilters(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeFilters(); });
 document.getElementById('applyFilters').addEventListener('click',()=>{
   FILTERS.incAnov=document.getElementById('incAnov').checked;
   FILTERS.bbtOnly=document.getElementById('bbtOnly').checked;
   FILTERS.lastN=Math.max(1, Math.min(36, Number(document.getElementById('lastN').value||12)));
-  sheet.classList.remove('open');
+  closeFilters();
   renderAll();
 });
-document.getElementById('exportBtn').addEventListener('click',()=>window.print());
 </script>
 </body>
 </html>
