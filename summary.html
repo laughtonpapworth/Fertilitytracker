@@ -12,6 +12,17 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="js/calendar-render.js"></script>
+  <script>
+  // Compat shim: keep existing calls working, do not override if already defined
+  window.changeCycle = window.changeCycle || (async function (idx) {
+    if (typeof window.initializeCycleView !== 'function') {
+      throw new Error('initializeCycleView missing (calendar-render.js not loaded or wrong file)');
+    }
+    // Re-mark the currently rendered calendar grid
+    return window.initializeCycleView({ container: document });
+  });
+</script>
+
 
   <style>
   body {
