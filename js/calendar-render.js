@@ -1,256 +1,547 @@
-// calendar-render.js — pure JS, no HTML.
-// Exposes: window.initializeCycleView(options?)
-// Options:
-//   entries?: Array<entry>  // if provided, skip Firestore
-//   container?: Element     // defaults to document
-//   onComputed?: (cycles) => void  // callback with computed cycles
-//
-// Calendar marking contract:
-//   We add classes to elements that match [data-date="YYYY-MM-DD"] in the container:
-//     .period, .fertile, .surge, .ovulation, .luteal
-//   If you also want small markers, add a child <span class="marker"> in your DOM/CSS.
+// Full fixed calendar-render.js
 
-(function () {
-  "use strict";
+let viewMonth = 0;
+let viewYear = 0;
+let allEntries = [];
+let allCycles = [];
+let currentCycleIndex = 0;
+let cycleViewEnabled = false;
+let cycleBoundaries = [];
 
-  // ===== Date helpers (UTC-normalised) =====
-  function toUTCmid(d) { return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); }
-  function addDays(d, n) { const x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
-  function dayDiff(a, b) {
-    if (!(a instanceof Date) || !(b instanceof Date)) return 0;
-    const A = toUTCmid(a), B = toUTCmid(b);
-    return Math.max(0, Math.floor((B - A) / 86400000));
-  }
-  function iso(d) { return (d instanceof Date && !isNaN(d)) ? d.toISOString().slice(0, 10) : "—"; }
+// Utility: left-pad numbers
+function pad(num) {
+  return String(num).padStart(2, '0');
+}
 
-  // ===== Robust input date parsing (supports Firestore timestamps/strings) =====
-  function parseAnyDate(v) {
-    if (!v) return null;
-    if (v instanceof Date) return isNaN(v) ? null : v;
-    if (typeof v === "number") { const d = new Date(v); return isNaN(d) ? null : d; }
-    if (typeof v === "object") {
-      if (typeof v.toDate === "function") { try { const d = v.toDate(); return isNaN(d) ? null : d; } catch (_) {} }
-      if (typeof v.seconds === "number") { const d = new Date(v.seconds * 1000); return isNaN(d) ? null : d; }
-    }
-    const d = new Date(String(v));
-    return isNaN(d) ? null : d;
-  }
-  function getEntryDate(e) {
-    const candidates = [e.timestamp, e.timeStamp, e.ts, e.recordedAt, e.date, e.Date, e.createdAt, e.created, e.created_on, e.id];
-    for (const v of candidates) { const d = parseAnyDate(v); if (d) return d; }
-    return null;
-  }
+// Helper: YYYY-MM-DD local ISO
+function formatISO(input) {
+  const d = new Date(input);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
-  // ===== BBT parse (kept minimal; safe bounds) =====
-  function parseBBT(v) {
-    if (v == null) return null;
-    let n = (typeof v === "number") ? v : parseFloat(String(v).replace(/[^\d.,-]/g, "").replace(",", "."));
-    if (!isFinite(n)) return null;
-    if (n > 80) n = (n - 32) * 5 / 9; // F → C
-    if (n < 35.0 || n > 38.5) return null;
-    return n;
-  }
+// Normalize phase string to detect Day 1 Period
+function isDay1Phase(phase) {
+  return (phase || '').toLowerCase().replace(/[^a-z0-9]/g, '') === 'day1period';
+}
 
-  // ===== Day 1 detection =====
-  function isDay1(e) {
-    const ph = (e.phase || "").toLowerCase();
-    return ph.includes("day1-period") || ph.includes("day1") || ph.includes("day 1") ||
-           ph.includes("day-1") || ph.includes("period start") || e.day1 === true;
-  }
+function normalizeStartDate(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);  // Start of day
+  return d;
+}
 
-  // ===== OPK / LH helpers (updated thresholds + aliases) =====
-  function opkAsNumber(v) {
-    if (v == null) return null;
-    if (typeof v === "number") return v;
-    const s = String(v).trim().toLowerCase();
-    if (s.includes("surge") || s.includes("solid")) return 1.0;   // legacy labels -> surge
-    if (s.includes("flashing")) return 0.5;                       // legacy label -> fertile
-    const n = parseFloat(s);
-    return isFinite(n) ? n : null;
-  }
-  function opkClass(v) {
-    if (v == null) return "none";
-    const s = (typeof v === "string") ? v.toLowerCase() : "";
-    const n = opkAsNumber(v);
-    if (s.includes("surge") || s.includes("solid") || (n != null && n >= 1.0)) return "surge";     // >= 1.0
-    if (s.includes("flashing") || (n != null && n >= 0.1 && n < 1.0)) return "fertile";            // 0.1–0.99
-    return "none";
-  }
-  function getOPKValue(e) { return (e.opk ?? e.lh ?? e.opkValue ?? null); }
+function normalizeEndDate(date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);  // End of day
+  return d;
+}
 
-  // ===== Load + normalise entries (optionally from Firestore) =====
-  async function loadEntriesFromFirestore() {
-    if (!(window.firebase && firebase.firestore && firebase.auth)) return [];
-    const u = firebase.auth().currentUser || await new Promise(res => {
-      const off = firebase.auth().onAuthStateChanged(x => { off(); res(x); });
-    });
-    if (!u) return [];
-    const db = firebase.firestore();
+/**
+ * Compute average cycle length, fertile offset, and ovulation offset
+ * across all completed cycles.
+ */
+function computeAverages(entries) {
+  const day1Entries = entries
+    .filter(e => isDay1Phase(e.phase))
+    .map(e => ({ iso: formatISO(e.entryDate), date: new Date(e.entryDate) }))
+    .sort((a, b) => a.date - b.date);
 
-    function normalizeDoc(d) {
-      const o = d.data(); o.id = d.id; o._src = d.ref.path;
-      const dd = getEntryDate(o); o._date = dd; o._key = dd ? iso(dd) : null;
-      o._bbt = parseBBT(o.bbt);
-      return o;
-    }
+  if (day1Entries.length < 2) return null;
 
-    const topP = db.collection("entries").get().then(s => s.docs.map(normalizeDoc)).catch(() => []);
-    const userP = db.collection("users").doc(u.uid).collection("entries").get().then(s => s.docs.map(normalizeDoc)).catch(() => []);
-    const [A, B] = await Promise.all([topP, userP]);
+  const cycleLengths = [];
+  const fertileOffsets = [];
+  const ovOffsets = [];
 
-    // Merge by date-key; prefer Day1, prefer user-scope on ties
-    const merged = {};
-    for (const e of [...A, ...B]) {
-      if (!e._date) continue;
-      const k = e._key;
-      if (!merged[k]) { merged[k] = e; continue; }
-      const cur = merged[k];
-      const curIsD1 = isDay1(cur), eIsD1 = isDay1(e);
-      if (eIsD1 && !curIsD1) { merged[k] = e; continue; }
-      if (!eIsD1 && curIsD1) { continue; }
-      const curIsUser = String(cur._src || "").includes("/users/");
-      const eIsUser = String(e._src || "").includes("/users/");
-      if (!curIsUser && eIsUser) { merged[k] = e; continue; }
-    }
-    return Object.keys(merged).sort().map(k => merged[k]);
-  }
+  for (let i = 0; i < day1Entries.length - 1; i++) {
+    const start = day1Entries[i];
+    const end = day1Entries[i + 1];
+    cycleLengths.push(Math.round((end.date - start.date) / 86400000));
 
-  // ===== Cycle building (completed + live) =====
-  function segmentCycles(entries) {
-    const byDate = entries.filter(e => e._date instanceof Date && !isNaN(e._date)).sort((a, b) => a._date - b._date);
-    const idxDay1 = []; for (let i = 0; i < byDate.length; i++) if (isDay1(byDate[i])) idxDay1.push(i);
-    const cycles = [];
-
-    // Completed cycles: Day1 -> next Day1
-    for (let c = 0; c < idxDay1.length - 1; c++) {
-      cycles.push(buildCycle(byDate.slice(idxDay1[c], idxDay1[c + 1]), true));
-    }
-
-    // Live cycle: last Day1 -> today (if any Day1 exists)
-    if (idxDay1.length) {
-      const seg = byDate.slice(idxDay1[idxDay1.length - 1]);
-      if (seg.length) cycles.push(buildCycle(seg, false));
-    }
-
-    return cycles;
-  }
-
-  function buildCycle(seg, completed) {
-    const startDate = toUTCmid(seg[0]._date);
-    const nextStart = completed ? toUTCmid(seg[seg.length - 1]._date) : null; // for completed we’ll compute below
-    const periodStart = startDate;
-    const periodEnd = addDays(periodStart, 4);
-
-    // Surge detection: first explicit surge else max numeric ≥ 1.0
-    let surgeDate = null, maxNum = -Infinity, maxDate = null;
-    for (const e of seg) {
-      const v = getOPKValue(e);
-      const d = toUTCmid(e._date);
-      const cls = opkClass(v);
-      if (cls === "surge") { surgeDate = d; break; }
-      const n = opkAsNumber(v); if (n != null && n > maxNum) { maxNum = n; maxDate = d; }
-    }
-    if (!surgeDate && maxDate && maxNum >= 1.0) surgeDate = maxDate;
-
-    const ovulationDate = surgeDate ? addDays(surgeDate, 1) : null;
-
-    // Fertile window (use readings; backfill to 5d pre-O if none)
-    let fertileStart = null, fertileEnd = null;
-    if (ovulationDate) {
-      const lastPreO = addDays(ovulationDate, -1);
-      for (const e of seg) {
-        const d = toUTCmid(e._date);
-        if (d <= periodEnd) continue;
-        if (d > lastPreO) break;
-        if (opkClass(getOPKValue(e)) === "fertile") { if (!fertileStart) fertileStart = d; fertileEnd = d; }
-      }
-      if (!fertileStart) fertileStart = addDays(ovulationDate, -5);
-      if (!fertileEnd) fertileEnd = lastPreO;
-      if (fertileStart && fertileStart <= periodEnd) fertileStart = addDays(periodEnd, 1);
-    }
-
-    // Luteal length only if completed & we know next Day1
-    let nextStartComputed = null;
-    if (completed) {
-      // In completed seg, last item is the next Day-1 (by how we sliced)
-      nextStartComputed = toUTCmid(seg[seg.length - 1]._date);
-    }
-    const lutealLen = (completed && ovulationDate && nextStartComputed) ? dayDiff(ovulationDate, nextStartComputed) : null;
-
-    // Minimal BBT metrics skipped here (not needed to mark the calendar)
-    return {
-      entries: seg,
-      startDate,
-      nextStart: completed ? nextStartComputed : null,
-      completed,
-      periodStart, periodEnd,
-      surgeDate, ovulationDate,
-      fertileStart, fertileEnd,
-      lutealLen
-    };
-  }
-
-  // ===== DOM marking =====
-  function markRange(container, start, end, className) {
-    if (!start || !end) return;
-    let d = toUTCmid(start);
-    const stop = addDays(toUTCmid(end), 1); // inclusive range
-    while (d < stop) {
-      const cell = container.querySelector(`[data-date="${iso(d)}"]`);
-      if (cell) cell.classList.add(className);
-      d = addDays(d, 1);
-    }
-  }
-  function markTick(container, date, className) {
-    if (!date) return;
-    const cell = container.querySelector(`[data-date="${iso(date)}"]`);
-    if (cell) cell.classList.add(className);
-  }
-
-  // ===== Public API =====
-  async function initializeCycleView(options) {
-    const opts = options || {};
-    const container = opts.container || document;
-    let entries = Array.isArray(opts.entries) ? opts.entries.slice() : null;
-
-    // Clear any old markings
-    ["period", "fertile", "surge", "ovulation", "luteal"].forEach(cls => {
-      container.querySelectorAll("." + cls).forEach(el => el.classList.remove(cls));
+    const cycleEntries = entries.filter(e => {
+      const iso = formatISO(e.entryDate);
+      return iso >= start.iso && iso < end.iso;
     });
 
-    if (!entries) {
-      entries = await loadEntriesFromFirestore();
+    // first confirmed fertile
+    const fertDates = cycleEntries
+      .filter(e => {
+        const v = parseFloat(e.opk);
+        return !isNaN(v) && v >= 0.3 && v <= 0.74;
+      })
+      .map(e => new Date(e.entryDate))
+      .sort((a, b) => a - b);
+    if (fertDates.length) {
+      const periodEnd = new Date(start.date);
+      periodEnd.setDate(periodEnd.getDate() + 4);
+      fertileOffsets.push(
+        Math.round((fertDates[0] - periodEnd) / 86400000)
+      );
     }
 
-    // Normalise & sort
-    entries = entries.map(e => {
-      const d = getEntryDate(e); return Object.assign({}, e, { _date: d, _key: d ? iso(d) : null, _bbt: parseBBT(e.bbt) });
-    }).filter(e => e._date);
-
-    const cycles = segmentCycles(entries);
-
-    // Mark calendar (all cycles)
-    for (const c of cycles) {
-      // Period
-      markRange(container, c.periodStart, c.periodEnd, "period");
-      // Fertile
-      if (c.fertileStart && c.fertileEnd) markRange(container, c.fertileStart, c.fertileEnd, "fertile");
-      // Surge tick
-      markTick(container, c.surgeDate, "surge");
-      // Ovulation tick (surge + 1)
-      markTick(container, c.ovulationDate, "ovulation");
-      // Luteal (completed cycles only; from day after ovulation to day before next Day-1)
-      if (c.completed && c.ovulationDate && c.nextStart) {
-        const lutealStart = addDays(c.ovulationDate, 1);
-        const lutealEnd = addDays(c.nextStart, -1);
-        if (dayDiff(lutealStart, lutealEnd) >= 0) markRange(container, lutealStart, lutealEnd, "luteal");
-      }
+    // confirmed ovulation = last surge + 1
+    const surgeDates = cycleEntries.filter(e => {
+      const v = parseFloat(e.opk);
+      const r = (e.opkResult || '').toLowerCase();
+      return (!isNaN(v) && v >= 0.75) || r === 'surge';
+    }).map(e => new Date(e.entryDate))
+      .sort((a, b) => a - b);
+    if (surgeDates.length) {
+      const ov = new Date(surgeDates.pop());
+      ov.setDate(ov.getDate() + 1);
+      ovOffsets.push(
+        Math.round((ov - start.date) / 86400000)
+      );
     }
-
-    if (typeof opts.onComputed === "function") opts.onComputed(cycles);
-    return cycles;
   }
 
-  // Expose globally for summary.html
-  window.initializeCycleView = initializeCycleView;
-})();
+  const avg = arr => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+  const avgCycleLength   = cycleLengths.length   ? avg(cycleLengths)   : null;
+  const avgFertileOffset = fertileOffsets.length ? avg(fertileOffsets) : null;
+  const avgOvOffset      = ovOffsets.length      ? avg(ovOffsets)      : null;
+  const lastDay1         = day1Entries.pop().date;
+
+  return { avgCycleLength, avgFertileOffset, avgOvOffset, lastDay1 };
+}
+
+function initializeCycleView(entries) {
+  allEntries = entries;
+
+  const day1Dates = entries
+    .filter(e => e.entryDate && isDay1Phase(e.phase))
+    .map(e => new Date(e.entryDate))
+    .sort((a, b) => a - b);
+
+  let boundaries = [];
+
+  // Compute averages once here
+  const averages = computeAverages(entries);
+
+  for (let i = 0; i < day1Dates.length; i++) {
+    const start = day1Dates[i];
+    let end;
+    if (i + 1 < day1Dates.length) {
+      end = new Date(day1Dates[i + 1]);
+      end.setDate(end.getDate() - 1);  // one day before next cycle start
+    } else {
+      // If last cycle, extend end by average cycle length if available
+      if (averages && averages.avgCycleLength) {
+        end = new Date(start);
+        end.setDate(end.getDate() + averages.avgCycleLength - 1);
+      } else {
+        end = new Date();  // fallback to today
+      }
+    }
+    if (end < start) end = new Date(start); // safeguard
+    boundaries.push({ start, end });
+  }
+
+  cycleBoundaries = boundaries;
+  currentCycleIndex = cycleBoundaries.length - 1;
+}
+
+function renderCycleCalendar(entries, startDate, endDate) {
+  console.log('renderCycleCalendar called', { startDate, endDate });
+  const grid = document.getElementById('calendarGrid');
+  // ensure full history & boundaries built
+  if (!grid) {
+    console.warn('No calendarGrid element found');
+    return;
+  }
+
+  grid.innerHTML = '';
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+    const hdr = document.createElement('div');
+    hdr.className = 'weekday';
+    hdr.textContent = d;
+    grid.appendChild(hdr);
+  });
+
+  const start = normalizeStartDate(startDate);
+  const end   = normalizeEndDate(endDate || Date.now());
+  const firstDow = start.getDay();
+  for (let i = 0; i < firstDow; i++) {
+    const blank = document.createElement('div');
+    blank.className = 'day-box empty';
+    grid.appendChild(blank);
+  }
+
+  let day = new Date(start);
+  while (day <= end) {
+    const iso = formatISO(day);
+    const cell = document.createElement('div');
+    cell.className = 'day-box';
+    cell.dataset.date = iso;
+    cell.innerHTML = `<div class="date-label">${day.getDate()}</div>`;
+    grid.appendChild(cell);
+    day.setDate(day.getDate() + 1);
+  }
+
+  // Debug: grab the July 11 cell once, after all cells exist
+  const debugCell = document.querySelector('.day-box[data-date="2025-07-11"]');
+  console.log('DEBUG before applyLoggedPeriod:', debugCell, debugCell && debugCell.classList);
+
+  // Pass the start and end dates to all highlight functions
+  // Highlight Day 1 for all cycles:
+  applyLoggedPeriod(allEntries, start, end);
+  applyLoggedFertile(entries, start, end);
+  // --- rendering fix: use full dataset for surge/ovulation so live entries are included
+  applyLoggedSurge(allEntries, start, end);
+  applyLoggedOvulation(allEntries, start, end);
+  // ---
+  applyLoggedSymptoms(entries, start, end);
+  applyLoggedLuteal(entries, start, end);
+
+  // Finally, inspect whether the deep-red class was added
+  console.log('DEBUG after applyLoggedPeriod:', debugCell, debugCell && debugCell.classList);
+
+  const preds = computeAverages(allEntries);  // use full history
+  if (preds) applyPredictedCycles(preds, 3, start, end);
+  console.log('DEBUG after applyLoggedPeriod:', debugCell, debugCell && debugCell.classList);
+}
+
+function renderUnifiedCalendar(entries, month, year) {
+  allEntries = entries;
+  viewMonth  = month;
+  viewYear   = year;
+
+  const label = document.getElementById('monthLabel');
+  if (label) {
+    const monthNames = [
+      "January","February","March","April","May","June",
+      "July","August","September","October","November","December"
+    ];
+    const shortYear = String(year).slice(-2);
+    label.textContent = `${monthNames[month]}-${shortYear}`;
+  }
+
+  const grid = document.getElementById('calendarGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+    const hdr = document.createElement('div');
+    hdr.className = 'weekday';
+    hdr.textContent = d;
+    grid.appendChild(hdr);
+  });
+  const firstDow = new Date(year, month, 1).getDay();
+  for (let i = 0; i < firstDow; i++) {
+    const blank = document.createElement('div');
+    blank.className = 'day-box empty';
+    grid.appendChild(blank);
+  }
+  const daysCount = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d <= daysCount; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'day-box';
+    const iso = `${year}-${pad(month + 1)}-${pad(d)}`;
+    cell.dataset.date = iso;
+    cell.innerHTML = `<div class="date-label">${d}</div>`;
+    grid.appendChild(cell);
+  }
+
+  applyLoggedPeriod(entries, new Date(year, month, 1), new Date(year, month, daysCount));
+  applyLoggedFertile(entries, new Date(year, month, 1), new Date(year, month, daysCount));
+  // --- rendering fix: use full dataset for surge/ovulation so live entries are included
+  applyLoggedSurge(allEntries, new Date(year, month, 1), new Date(year, month, daysCount));
+  applyLoggedOvulation(allEntries, new Date(year, month, 1), new Date(year, month, daysCount));
+  // ---
+  applyLoggedSymptoms(entries, new Date(year, month, 1), new Date(year, month, daysCount));
+  applyLoggedLuteal(entries, new Date(year, month, 1), new Date(year, month, daysCount));
+
+  const preds = computeAverages(allEntries);
+  if (preds) applyPredictedCycles(preds, 3, new Date(year, month, 1), new Date(year, month, daysCount));
+}
+
+function changeMonth(offset) {
+  viewMonth += offset;
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  renderUnifiedCalendar(allEntries, viewMonth, viewYear);
+}
+
+/* — Logged highlight functions — */
+
+function applyLoggedPeriod(entries, startDate, endDate) {
+  const day1Dates = entries
+    .filter(e => isDay1Phase(e.phase))
+    .map(e => formatISO(e.entryDate));
+  day1Dates.forEach(isoStart => {
+    const [y, m, d] = isoStart.split('-').map(Number);
+    const start = new Date(y, m - 1, d);
+    for (let i = 0; i < 5; i++) {
+      const dt = new Date(start);
+      dt.setDate(start.getDate() + i);
+      if (dt >= startDate && dt <= endDate) {
+        const box = document.querySelector(`.day-box[data-date="${formatISO(dt)}"]`);
+        if (box) box.classList.add(i === 0 ? 'deep-red' : 'red');
+      }
+    }
+  });
+}
+
+function applyLoggedFertile(entries, startDate, endDate) {
+  document.querySelectorAll('.day-box.fertile').forEach(b => b.classList.remove('fertile'));
+  entries.forEach(e => {
+    const v = parseFloat(e.opk);
+    const r = (e.opkResult || '').toLowerCase();
+    if (r === 'surge') return; // surge shouldn't be marked fertile
+    if (isNaN(v) || v < 0.2 || v >= 1) return;
+    const iso = formatISO(e.entryDate);
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    if (dt >= startDate && dt <= endDate) {
+      const box = document.querySelector(`.day-box[data-date="${iso}"]`);
+      if (box && !box.classList.contains('deep-red') && !box.classList.contains('red')) {
+        box.classList.add('fertile');
+      }
+    }
+  });
+}
+
+function applyLoggedSurge(entries, startDate, endDate) {
+  console.log('[Surge Detection] Entries:', entries);
+  document.querySelectorAll('.day-box.surge').forEach(b => b.classList.remove('surge'));
+  entries.forEach(e => {
+    const v = parseFloat(e.opk);
+    const r = (e.opkResult || '').toLowerCase();
+    if ((isNaN(v) || v < 1) && r !== 'surge') return;
+    const iso = formatISO(e.entryDate);
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    console.log(`Checking Surge for ${iso}: OPK=${v}, Result=${r}`);
+    if (dt >= startDate && dt <= endDate) {
+      const box = document.querySelector(`.day-box[data-date="${iso}"]`);
+      if (box && !box.classList.contains('deep-red') && !box.classList.contains('red')) {
+        box.classList.add('surge');
+        console.log(`Marked surge on ${iso}`);
+      }
+    }
+  });
+}
+
+function applyLoggedOvulation(entries, startDate, endDate) {
+  document.querySelectorAll('.day-box.ovulation').forEach(b => b.classList.remove('ovulation'));
+  const day1Isos = entries.filter(e => isDay1Phase(e.phase)).map(e => formatISO(e.entryDate)).sort();
+  day1Isos.forEach((startIso, idx) => {
+    const endIso = day1Isos[idx + 1] || null;
+    const surges = entries.map(e => ({ iso: formatISO(e.entryDate), v: parseFloat(e.opk), r: (e.opkResult || '').toLowerCase() }))
+      .filter(o => ((o.v >= 1 && !isNaN(o.v)) || o.r === 'surge') && o.iso > startIso && (!endIso || o.iso < endIso))
+      .map(o => o.iso);
+    console.log(`[Ovulation] Cycle from ${startIso} to ${endIso || 'now'} found surges:`, surges);
+    if (!surges.length) return;
+    const last = surges.pop();
+    const [y, m, d] = last.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + 1);
+    if (dt >= startDate && dt <= endDate) {
+      const isoOv = formatISO(dt);
+      const box = document.querySelector(`.day-box[data-date="${isoOv}"]`);
+      if (box) {
+        box.classList.remove('fertile');
+        box.classList.add('ovulation');
+        console.log(`Marked ovulation on ${isoOv}`);
+      }
+    }
+  });
+}
+
+function applyLoggedSymptoms(entries, startDate, endDate) {
+  document.querySelectorAll('.day-box .symptom-icon').forEach(el => el.remove());
+  const periodSet = new Set();
+  entries
+    .filter(e => {
+      const p = (e.phase || '').toLowerCase();
+      return p === 'day1-period' || p === 'period';
+    })
+    .forEach(e => {
+      const dt = new Date(e.entryDate);
+      const isDay1 = isDay1Phase(e.phase);
+      const days = isDay1 ? 5 : 1;
+      for (let i = 0; i < days; i++) {
+        const d2 = new Date(dt);
+        d2.setDate(dt.getDate() + i);
+        periodSet.add(formatISO(d2));
+      }
+    });
+  const iconsByDate = {};
+  entries.forEach(e => {
+    const iso = formatISO(e.entryDate);
+    if (!iconsByDate[iso]) iconsByDate[iso] = new Set();
+    if (e.spotting && e.spotting !== 'none') iconsByDate[iso].add('🚩');
+    if (e.cramps && e.cramps !== 'none') iconsByDate[iso].add('🤕');
+    if (e.breastChanges && e.breastChanges !== 'none') iconsByDate[iso].add('🤱');
+    if (e.digestive && e.digestive !== 'none') iconsByDate[iso].add('🤢');
+    if (e.sex && e.sex.toLowerCase() === 'yes') iconsByDate[iso].add('❤️');
+  });
+  Object.entries(iconsByDate).forEach(([iso, set]) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    if (dt < startDate || dt > endDate) return;
+    const box = document.querySelector(`.day-box[data-date="${iso}"]`);
+    set.forEach(emoji => {
+      if (emoji === '🩸' && periodSet.has(iso)) return;
+      const span = document.createElement('span');
+      span.className = 'symptom-icon';
+      span.textContent = emoji;
+      box.appendChild(span);
+    });
+  });
+}
+
+function applyLoggedLuteal(entries, startDate, endDate) {
+  document.querySelectorAll('.day-box.luteal').forEach(b => b.classList.remove('luteal'));
+
+  const ovIsos = entries
+    .filter(e => parseFloat(e.opk) >= 1 || (e.opkResult || '').toLowerCase() === 'surge')
+    .map(e => {
+      const d = new Date(e.entryDate);
+      d.setDate(d.getDate() + 1); // Ovulation = day after surge
+      return formatISO(d);
+    })
+    .sort();
+
+  const day1Isos = entries
+    .filter(e => isDay1Phase(e.phase))
+    .map(e => formatISO(e.entryDate))
+    .sort();
+
+  ovIsos.forEach(ovIso => {
+    const ovDate = new Date(ovIso);
+    const nextDay1Iso = day1Isos.find(d1 => d1 > ovIso);
+    const endDateCalc = nextDay1Iso ? new Date(nextDay1Iso) : endDate;
+
+    let dt = new Date(ovDate);
+    while (dt <= endDateCalc) {
+      if (dt >= startDate && dt <= endDate) {
+        const iso = formatISO(dt);
+        const cell = document.querySelector(`.day-box[data-date="${iso}"]`);
+        if (cell && !cell.classList.contains('deep-red') && !cell.classList.contains('ovulation')) {
+          cell.classList.add('luteal');
+        }
+      }
+      dt.setDate(dt.getDate() + 1);
+    }
+  });
+}
+
+/* — Predictions (period, fertile, ovulation) — */
+function applyPredictedCycles({ avgCycleLength, avgFertileOffset, avgOvOffset, lastDay1 }, count, startDate, endDate) {
+  for (let cycle = 0; cycle <= count; cycle++) {
+    const start = new Date(lastDay1);
+    start.setDate(start.getDate() + avgCycleLength * cycle);
+    if (start > endDate) break;
+    for (let i = 0; i < 5; i++) {
+      const dt = new Date(start);
+      dt.setDate(dt.getDate() + i);
+      if (dt >= startDate && dt <= endDate) markPrediction(dt, '🩸');
+    }
+    const pe = new Date(start);
+    pe.setDate(pe.getDate() + 4);
+    const fs = new Date(pe);
+    fs.setDate(fs.getDate() + avgFertileOffset);
+    const fe = new Date(start);
+    fe.setDate(fe.getDate() + avgOvOffset);
+    for (let dt = new Date(fs); dt <= fe; dt.setDate(dt.getDate() + 1)) {
+      if (dt >= startDate && dt <= endDate) markPrediction(dt, '🔵');
+    }
+    const ov = new Date(start);
+    ov.setDate(ov.getDate() + avgOvOffset);
+    if (ov >= startDate && ov <= endDate) markPrediction(ov, '🔷');
+  }
+}
+
+function markPrediction(date, icon) {
+  const iso = formatISO(date);
+  const cell = document.querySelector(`.day-box[data-date="${iso}"]`);
+  if (!cell) return;
+  const ico = document.createElement('div');
+  ico.className = 'prediction';
+  ico.textContent = icon;
+  cell.appendChild(ico);
+}
+function markPrediction(date, icon) {
+  const iso = formatISO(date);
+  const cell = document.querySelector(`.day-box[data-date="${iso}"]`);
+  if (!cell) return;
+  const ico = document.createElement('div');
+  ico.className = 'prediction';
+  ico.textContent = icon;
+  cell.appendChild(ico);
+}
+
+function changeCycle(offset) {
+  // DEBUG: entering changeCycle
+  console.group(`changeCycle called with offset: ${offset}`);
+  console.log('currentCycleIndex:', currentCycleIndex);
+  console.log('allCycles.length:', allCycles.length);
+  console.log('cycleBoundaries.length:', cycleBoundaries.length);
+
+  const lastIndex = allCycles.length - 1;
+  let newIndex = currentCycleIndex + offset;
+  console.log('unclamped newIndex:', newIndex);
+  newIndex = Math.max(0, Math.min(newIndex, lastIndex + 3));
+  console.log('clamped newIndex:', newIndex);
+  console.groupEnd();
+
+  currentCycleIndex = newIndex;
+
+  const label = document.getElementById('monthLabel');
+  const sel   = document.getElementById('cycleSelect');
+  if (!label || !sel) {
+    console.warn('Missing #monthLabel or #cycleSelect in DOM');
+    return;
+  }
+
+  // Short month names
+  const monthNamesShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  if (newIndex <= lastIndex) {
+    // — Real past/current cycle —
+    const { start, end } = cycleBoundaries[newIndex] || {};
+    sel.value = newIndex;
+    console.log('Rendering real cycle index:', newIndex, { start, end });
+
+    renderCycleCalendar(allCycles[newIndex].entries, start, end);
+    renderTable(allCycles[newIndex].entries);
+    renderCharts(allCycles[newIndex].entries);
+
+    // display month range (months only)
+    const startM = monthNamesShort[start.getMonth()];
+    const endM   = monthNamesShort[end.getMonth()];
+    label.textContent = startM === endM
+      ? startM
+      : `${startM}-${endM}`;
+
+    console.log('Navigated to real cycle index:', newIndex);
+    return;
+  }
+
+  // — Future predictions —
+  sel.value = lastIndex;
+  console.log('Rendering prediction offset:', newIndex - lastIndex);
+  const preds = computeAverages(allEntries);
+  if (!preds) return;
+
+  const startPred = new Date(preds.lastDay1);
+  startPred.setDate(startPred.getDate() + preds.avgCycleLength * (newIndex - lastIndex));
+  const endPred = new Date(startPred);
+  endPred.setDate(endPred.getDate() + preds.avgCycleLength - 1);
+
+  renderCycleCalendar([], startPred, endPred);
+  renderTable([]);
+  renderCharts([]);
+
+  // predictions label (months only)
+  const pStartM = monthNamesShort[startPred.getMonth()];
+  const pEndM   = monthNamesShort[endPred.getMonth()];
+  label.textContent = pStartM === pEndM
+    ? pStartM
+    : `${pStartM}-${pEndM}`;
+
+  console.log('Navigated to predicted cycle range:', label.textContent);
+}
+
+// Expose to global
+window.renderCycleCalendar = renderCycleCalendar;
+window.changeCycle = changeCycle;
+window.initializeCycleView = initializeCycleView;
