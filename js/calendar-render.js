@@ -184,12 +184,10 @@ function renderCycleCalendar(entries, startDate, endDate) {
   // Highlight Day 1 for all cycles:
   applyLoggedPeriod(allEntries, start, end);
   applyLoggedFertile(entries, start, end);
-  // --- rendering fix: use full dataset for surge/ovulation so live entries are included
-  applyLoggedSurge(allEntries, start, end);
-  applyLoggedOvulation(allEntries, start, end);
-  // ---
+  applyLoggedSurge(entries, start, end);       // uses 0.75 now
+  applyLoggedOvulation(entries, start, end);   // uses 0.75 now
   applyLoggedSymptoms(entries, start, end);
-  applyLoggedLuteal(entries, start, end);
+  applyLoggedLuteal(entries, start, end);      // uses 0.75 now
 
   // Finally, inspect whether the deep-red class was added
   console.log('DEBUG after applyLoggedPeriod:', debugCell, debugCell && debugCell.classList);
@@ -241,12 +239,10 @@ function renderUnifiedCalendar(entries, month, year) {
 
   applyLoggedPeriod(entries, new Date(year, month, 1), new Date(year, month, daysCount));
   applyLoggedFertile(entries, new Date(year, month, 1), new Date(year, month, daysCount));
-  // --- rendering fix: use full dataset for surge/ovulation so live entries are included
-  applyLoggedSurge(allEntries, new Date(year, month, 1), new Date(year, month, daysCount));
-  applyLoggedOvulation(allEntries, new Date(year, month, 1), new Date(year, month, daysCount));
-  // ---
+  applyLoggedSurge(entries, new Date(year, month, 1), new Date(year, month, daysCount));       // uses 0.75 now
+  applyLoggedOvulation(entries, new Date(year, month, 1), new Date(year, month, daysCount));   // uses 0.75 now
   applyLoggedSymptoms(entries, new Date(year, month, 1), new Date(year, month, daysCount));
-  applyLoggedLuteal(entries, new Date(year, month, 1), new Date(year, month, daysCount));
+  applyLoggedLuteal(entries, new Date(year, month, 1), new Date(year, month, daysCount));      // uses 0.75 now
 
   const preds = computeAverages(allEntries);
   if (preds) applyPredictedCycles(preds, 3, new Date(year, month, 1), new Date(year, month, daysCount));
@@ -304,7 +300,8 @@ function applyLoggedSurge(entries, startDate, endDate) {
   entries.forEach(e => {
     const v = parseFloat(e.opk);
     const r = (e.opkResult || '').toLowerCase();
-    if ((isNaN(v) || v < 1) && r !== 'surge') return;
+    // CHANGED: 1.0 -> 0.75 so 0.79 is treated as surge in rendering
+    if ((isNaN(v) || v < 0.75) && r !== 'surge') return;
     const iso = formatISO(e.entryDate);
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
@@ -325,7 +322,8 @@ function applyLoggedOvulation(entries, startDate, endDate) {
   day1Isos.forEach((startIso, idx) => {
     const endIso = day1Isos[idx + 1] || null;
     const surges = entries.map(e => ({ iso: formatISO(e.entryDate), v: parseFloat(e.opk), r: (e.opkResult || '').toLowerCase() }))
-      .filter(o => ((o.v >= 1 && !isNaN(o.v)) || o.r === 'surge') && o.iso > startIso && (!endIso || o.iso < endIso))
+      // CHANGED: 1.0 -> 0.75
+      .filter(o => ((o.v >= 0.75 && !isNaN(o.v)) || o.r === 'surge') && o.iso > startIso && (!endIso || o.iso < endIso))
       .map(o => o.iso);
     console.log(`[Ovulation] Cycle from ${startIso} to ${endIso || 'now'} found surges:`, surges);
     if (!surges.length) return;
@@ -392,7 +390,8 @@ function applyLoggedLuteal(entries, startDate, endDate) {
   document.querySelectorAll('.day-box.luteal').forEach(b => b.classList.remove('luteal'));
 
   const ovIsos = entries
-    .filter(e => parseFloat(e.opk) >= 1 || (e.opkResult || '').toLowerCase() === 'surge')
+    // CHANGED: 1.0 -> 0.75
+    .filter(e => parseFloat(e.opk) >= 0.75 || (e.opkResult || '').toLowerCase() === 'surge')
     .map(e => {
       const d = new Date(e.entryDate);
       d.setDate(d.getDate() + 1); // Ovulation = day after surge
