@@ -295,7 +295,7 @@ function formatDate(d) {
 let surge = cycle.find(e => {
   const v = parseFloat(e.opk);
   const r = ((e.opkResult || e.opk || '') + '').toLowerCase();
-  return (!isNaN(v) && v >= 1) || r === 'surge';
+  return (!isNaN(v) && v >= 0.75) || r === 'surge';
 });
 
       if (surge) {
